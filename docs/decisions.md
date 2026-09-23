@@ -37,6 +37,20 @@ scoping", 24/09/2026). Where this file and the scoping document differ, this fil
     evidence. Retention is handled by the privacy provider.
 11. **CI runs on pull requests and `main` only** (no schedule) while the repo is private.
 
+## Schema notes
+
+- `local_cpdlog_target` holds the required hours; `local_cpdlog_target_cat` links the categories
+  that count towards it. One linked category is a per-category minimum, several make a combined
+  minimum, and none makes an overall total (decision 1).
+- `local_cpdlog_cohortchoice` records staff choices for cohort conflicts, one per member per
+  period; a null `cohortid` means the all-members targets apply (decision 3).
+- The scoping document's `approvedby` / `approvedtime` are `reviewedby` / `timereviewed`, because
+  they record whoever last approved *or* rejected the entry. Reversal has its own
+  `reversedby` / `timereversed` / `reversalreason` (decision 4).
+- `externalref` is nullable; the unique (`source`, `externalref`) index allows many rows without a
+  reference while blocking a duplicate iMIS row.
+- The maximum hours per entry defaults to 40 as a placeholder until SCCA confirms a value.
+
 ## Licensing note
 
 The plugin is Mode A (proprietary, SCCA). If it is ever open-sourced it becomes Mode B: that
@@ -47,7 +61,7 @@ of the licence overrides in `.phpcs.xml`.
 
 | Phase | Delivers | Status |
 |---|---|---|
-| 1. Foundation | Skeleton and CI; schema, capabilities, settings; category, period and target admin | In progress |
+| 1. Foundation | Skeleton and CI (done); schema, capabilities, settings (done); category, period and target admin | In progress |
 | 2. Capture | Entry form, validation, evidence upload, pluginfile callback, draft and submit | |
 | 3. Approval | Staff queue, approve / reject / reverse, events, message providers | |
 | 4. Reporting | Member progress page; Report Builder source for staff | |

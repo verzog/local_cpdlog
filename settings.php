@@ -10,9 +10,8 @@
 // in whole or in part, via any medium, is strictly prohibited without the
 // prior written permission of Skin Cancer College Australasia. The software
 // is provided "as is", without warranty of any kind, express or implied.
-
 /**
- * Version information for the CPD logbook plugin.
+ * Admin settings for the CPD logbook plugin.
  *
  * @package    local_cpdlog
  * @copyright  © Skin Cancer College Australasia
@@ -21,9 +20,17 @@
 
 defined('MOODLE_INTERNAL') || die();
 
-$plugin->component = 'local_cpdlog';
-$plugin->version = 2026092401;
-$plugin->requires = 2025041400; // Moodle 5.0.
-$plugin->supported = [500, 503];
-$plugin->maturity = MATURITY_ALPHA;
-$plugin->release = '0.1.0';
+if ($hassiteconfig) {
+    $settings = new admin_settingpage('local_cpdlog', new lang_string('pluginname', 'local_cpdlog'));
+    $ADMIN->add('localplugins', $settings);
+
+    if ($ADMIN->fulltree) {
+        $settings->add(new admin_setting_configtext(
+            'local_cpdlog/maxhoursperentry',
+            new lang_string('maxhoursperentry', 'local_cpdlog'),
+            new lang_string('maxhoursperentry_desc', 'local_cpdlog'),
+            '40',
+            PARAM_FLOAT
+        ));
+    }
+}
