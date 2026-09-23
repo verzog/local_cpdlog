@@ -41,7 +41,7 @@ jobs:
           - {check: 'PHP Mess Detector', command: 'phpmd', advisory: true}
           # The command defaults to the stock "moodle" standard; pass the plugin ruleset so the
           # Mode A licence overrides in .phpcs.xml apply.
-          - {check: 'Moodle Code Checker', command: 'phpcs --standard ${PLUGIN_DIR}/.phpcs.xml --max-warnings 0'}
+          - {check: 'Moodle Code Checker', command: 'phpcs --standard ${PHPCS_RULESET} --max-warnings 0'}
           - {check: 'Moodle PHPDoc Checker', command: 'phpdoc --max-warnings 0'}
           - {check: 'Validating', command: 'validate'}
           - {check: 'Check upgrade savepoints', command: 'savepoints'}
@@ -51,7 +51,8 @@ jobs:
     continue-on-error: ${{ matrix.advisory == true }}
 
     env:
-      PLUGIN_DIR: ${{ github.workspace }}/plugin
+      # Not PLUGIN_DIR: moodle-plugin-ci reads that to locate the installed plugin.
+      PHPCS_RULESET: ${{ github.workspace }}/plugin/.phpcs.xml
 
     steps:
       - name: Check out repository code
