@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ruleset name="ProjectRuleset">
+    <rule ref="moodle">
+        <!-- Proprietary plugin: GPL boilerplate sniff does not apply. -->
+        <exclude name="moodle.Files.BoilerplateComment"/>
+    </rule>
+    <!-- Proprietary plugin: require the Mode A licence tag instead of the GPL one. -->
+    <rule ref="moodle.Commenting.FileExpectedTags">
+        <properties>
+            <property name="preferredLicenseRegex"
+                value="@^Proprietary — Skin Cancer College Australasia, all rights reserved$@u"/>
+        </properties>
+    </rule>
+</ruleset>
