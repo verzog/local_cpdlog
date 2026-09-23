@@ -30,7 +30,6 @@ jobs:
       mariadb:
         image: mariadb:11
         env:
-          MYSQL_USER: 'root'
           MYSQL_ALLOW_EMPTY_PASSWORD: "true"
           MYSQL_CHARACTER_SET_SERVER: "utf8mb4"
           MYSQL_COLLATION_SERVER: "utf8mb4_unicode_ci"
@@ -95,7 +94,9 @@ jobs:
 
       - name: Moodle Code Checker
         if: ${{ !cancelled() && matrix.static }}
-        run: moodle-plugin-ci phpcs --max-warnings 0
+        # The command defaults to the stock "moodle" standard; pass the plugin ruleset so the
+        # Mode A licence overrides in .phpcs.xml apply.
+        run: moodle-plugin-ci phpcs --standard ${{ github.workspace }}/plugin/.phpcs.xml --max-warnings 0
 
       - name: Moodle PHPDoc Checker
         if: ${{ !cancelled() && matrix.static }}
