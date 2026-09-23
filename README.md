@@ -1,2 +1,2 @@
-# mod_cpd
-mod-cpd
+# local_cpd
+local-cpd
