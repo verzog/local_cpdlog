@@ -31,6 +31,21 @@ Notifications_ to complete the installation, or run
 
 to complete the installation from the command line.
 
+## Setting up approvers
+
+CPD entries are approved by a designated site-level role. After installing:
+
+1. Go to _Site administration > Users > Permissions > Define roles_ and add a role (for example
+   "CPD approver") with context type _System_.
+2. Allow `local/cpdlog:approve`. Add `local/cpdlog:viewall` if approvers should also see every
+   member's logbook, and `local/cpdlog:manageperiods` for staff who maintain categories, periods
+   and targets.
+3. Assign the role to the approving staff under _Site administration > Users > Permissions >
+   Assign system roles_.
+
+Members need no role assignment: logging and viewing their own CPD is granted to the
+authenticated user role by default.
+
 ## Requirements
 
 | Moodle | PHP |
