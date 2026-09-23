@@ -15,7 +15,78 @@ env:
   TZ: Australia/Sydney
 
 jobs:
-  test:
+  # One job per static check so each shows as its own line on the PR. They run on the lowest
+  # supported Moodle and PHP, installing with --no-init to skip PHPUnit and Behat setup. The
+  # installer still creates the Moodle database, so PostgreSQL is needed.
+  static:
+    name: ${{ matrix.check }}
+    runs-on: ubuntu-24.04
+
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: 'postgres'
+          POSTGRES_HOST_AUTH_METHOD: 'trust'
+        ports:
+          - 5432:5432
+        options: --health-cmd pg_isready --health-interval 10s --health-timeout 5s --health-retries 3
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - {check: 'PHP Lint', command: 'phplint'}
+          # Complexity warnings are advisory only.
+          - {check: 'PHP Mess Detector', command: 'phpmd', advisory: true}
+          # The command defaults to the stock "moodle" standard; pass the plugin ruleset so the
+          # Mode A licence overrides in .phpcs.xml apply.
+          - {check: 'Moodle Code Checker', command: 'phpcs --standard ${PLUGIN_DIR}/.phpcs.xml --max-warnings 0'}
+          - {check: 'Moodle PHPDoc Checker', command: 'phpdoc --max-warnings 0'}
+          - {check: 'Validating', command: 'validate'}
+          - {check: 'Check upgrade savepoints', command: 'savepoints'}
+          - {check: 'Mustache Lint', command: 'mustache'}
+          - {check: 'Grunt', command: 'grunt --max-lint-warnings 0'}
+
+    continue-on-error: ${{ matrix.advisory == true }}
+
+    env:
+      PLUGIN_DIR: ${{ github.workspace }}/plugin
+
+    steps:
+      - name: Check out repository code
+        uses: actions/checkout@v4
+        with:
+          path: plugin
+
+      - name: Setup PHP 8.2
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+          extensions: sodium
+          ini-values: max_input_vars=5000
+          coverage: none
+
+      - name: Initialise moodle-plugin-ci
+        run: |
+          composer create-project -n --no-dev --prefer-dist moodlehq/moodle-plugin-ci ci ^4
+          echo $(cd ci/bin; pwd) >> $GITHUB_PATH
+          echo $(cd ci/vendor/bin; pwd) >> $GITHUB_PATH
+          sudo locale-gen en_AU.UTF-8
+          echo "NVM_DIR=$HOME/.nvm" >> $GITHUB_ENV
+
+      - name: Install moodle-plugin-ci
+        run: moodle-plugin-ci install --plugin ./plugin --db-host=127.0.0.1 --no-init
+        env:
+          DB: pgsql
+          MOODLE_BRANCH: MOODLE_500_STABLE
+
+      - name: ${{ matrix.check }}
+        run: moodle-plugin-ci ${{ matrix.command }}
+
+  # One job per test suite per Moodle/PHP/database cell.
+  tests:
+    name: ${{ matrix.suite }} (${{ matrix.cell.moodle-branch }}, PHP ${{ matrix.cell.php }}, ${{ matrix.cell.database }})
     runs-on: ubuntu-24.04
 
     services:
@@ -43,17 +114,17 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
+        suite: ['PHPUnit', 'Behat']
         # Branch-aware: Moodle 5.2+ dropped PHP 8.2, so 8.2 is only tested on 5.0.
-        # Static checks run on the lowest cell only (phplint must use the lowest PHP).
-        include:
-          - {moodle-branch: 'MOODLE_500_STABLE', php: '8.2', database: 'pgsql', static: true}
-          - {moodle-branch: 'MOODLE_501_STABLE', php: '8.4', database: 'mariadb', static: false}
-          - {moodle-branch: 'MOODLE_502_STABLE', php: '8.3', database: 'pgsql', static: false}
-          - {moodle-branch: 'MOODLE_502_STABLE', php: '8.4', database: 'mariadb', static: false}
+        cell:
+          - {moodle-branch: 'MOODLE_500_STABLE', php: '8.2', database: 'pgsql'}
+          - {moodle-branch: 'MOODLE_501_STABLE', php: '8.4', database: 'mariadb'}
+          - {moodle-branch: 'MOODLE_502_STABLE', php: '8.3', database: 'pgsql'}
+          - {moodle-branch: 'MOODLE_502_STABLE', php: '8.4', database: 'mariadb'}
           # Moodle 5.3 LTS; switch to MOODLE_503_STABLE and drop allow-failure once it exists.
-          - {moodle-branch: 'main', php: '8.3', database: 'pgsql', static: false}
+          - {moodle-branch: 'main', php: '8.3', database: 'pgsql'}
 
-    continue-on-error: ${{ matrix.moodle-branch == 'main' }}
+    continue-on-error: ${{ matrix.cell.moodle-branch == 'main' }}
 
     steps:
       - name: Check out repository code
@@ -61,10 +132,10 @@ jobs:
         with:
           path: plugin
 
-      - name: Setup PHP ${{ matrix.php }}
+      - name: Setup PHP ${{ matrix.cell.php }}
         uses: shivammathur/setup-php@v2
         with:
-          php-version: ${{ matrix.php }}
+          php-version: ${{ matrix.cell.php }}
           extensions: sodium
           ini-values: max_input_vars=5000
           coverage: none
@@ -80,62 +151,23 @@ jobs:
       - name: Install moodle-plugin-ci
         run: moodle-plugin-ci install --plugin ./plugin --db-host=127.0.0.1
         env:
-          DB: ${{ matrix.database }}
-          MOODLE_BRANCH: ${{ matrix.moodle-branch }}
-
-      - name: PHP Lint
-        if: ${{ !cancelled() && matrix.static }}
-        run: moodle-plugin-ci phplint
-
-      - name: PHP Mess Detector
-        continue-on-error: true
-        if: ${{ !cancelled() && matrix.static }}
-        run: moodle-plugin-ci phpmd
-
-      - name: Moodle Code Checker
-        if: ${{ !cancelled() && matrix.static }}
-        # The command defaults to the stock "moodle" standard; pass the plugin ruleset so the
-        # Mode A licence overrides in .phpcs.xml apply.
-        run: moodle-plugin-ci phpcs --standard ${{ github.workspace }}/plugin/.phpcs.xml --max-warnings 0
-
-      - name: Moodle PHPDoc Checker
-        if: ${{ !cancelled() && matrix.static }}
-        run: moodle-plugin-ci phpdoc --max-warnings 0
-
-      - name: Validating
-        if: ${{ !cancelled() && matrix.static }}
-        run: moodle-plugin-ci validate
-
-      - name: Check upgrade savepoints
-        if: ${{ !cancelled() && matrix.static }}
-        run: moodle-plugin-ci savepoints
-
-      - name: Mustache Lint
-        if: ${{ !cancelled() && matrix.static }}
-        run: moodle-plugin-ci mustache
-
-      - name: Grunt
-        if: ${{ !cancelled() && matrix.static }}
-        run: moodle-plugin-ci grunt --max-lint-warnings 0
+          DB: ${{ matrix.cell.database }}
+          MOODLE_BRANCH: ${{ matrix.cell.moodle-branch }}
 
       - name: PHPUnit tests
-        if: ${{ !cancelled() }}
+        if: ${{ matrix.suite == 'PHPUnit' }}
         run: moodle-plugin-ci phpunit --fail-on-warning
 
       - name: Behat features
         id: behat
-        if: ${{ !cancelled() }}
+        if: ${{ matrix.suite == 'Behat' }}
         run: moodle-plugin-ci behat --profile chrome --auto-rerun 3
 
       - name: Upload Behat faildump
         if: ${{ failure() && steps.behat.outcome == 'failure' }}
         uses: actions/upload-artifact@v4
         with:
-          name: Behat faildump (${{ join(matrix.*, ', ') }})
+          name: Behat faildump (${{ matrix.cell.moodle-branch }}, ${{ matrix.cell.php }}, ${{ matrix.cell.database }})
           path: ${{ github.workspace }}/moodledata/behat_dump
           retention-days: 7
           if-no-files-found: ignore
-
-      - name: Mark cancelled jobs as failed
-        if: ${{ cancelled() }}
-        run: exit 1
