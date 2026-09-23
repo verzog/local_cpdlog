@@ -1,0 +1,64 @@
+# Design decisions
+
+Decisions agreed on 23/09/2026 when reviewing the scoping document ("CPD logbook plugin —
+scoping", 24/09/2026). Where this file and the scoping document differ, this file wins.
+
+## Decisions
+
+1. **Targets are fully configurable.** The scoping document assumed per-category targets per
+   triennium. The Medical Board standard since 2023 is annual, with a combined minimum across
+   Reviewing Performance and Measuring Outcomes. Targets therefore support a minimum per
+   category, a minimum across a group of categories, and an overall total, with periods of any
+   length (annual or triennial).
+2. **Approval is by a designated site-level role.** `local/cpdlog:approve` stays at system
+   context; SCCA assigns it to a named approver role. Course-specific approvers are out of scope.
+3. **Cohort target conflicts go to a staff conflict list.** When a member belongs to more than
+   one cohort with different targets for the same period, the conflict is listed for staff, who
+   choose which cohort's target applies to that member. The choice is recorded. Until it is
+   made, the all-members target applies.
+4. **Reversal is a status.** A final `reversed` status is added. Reversing an approved entry
+   keeps the original visible and fires `entry_reversed`; only staff can reverse.
+5. **Rejected is a stored status.** Rejection sets `rejected` with a reason, so rejections can be
+   reported. When the member edits a rejected entry it returns to `draft`.
+6. **Past enrolments.** Course validity accepts current, suspended or expired enrolments via
+   `is_enrolled()`, and falls back to course completion records for fully unenrolled members.
+7. **Schema additions.** `evidencerequired` on categories; a course name snapshot on each entry
+   so entries stay readable if the course is deleted; a unique index on (`source`,
+   `externalref`) so an iMIS row cannot be imported twice.
+8. **Later tables arrive by upgrade.** The reminder log, sync retry state and events cache are
+   added in their own phases through `db/upgrade.php`. The upcoming-events feature is
+   configurable (on/off, with its source isolated behind its own class) so it keeps working, or
+   can be switched off, if SCCA moves away from iMIS.
+9. **Date storage.** Period end dates are stored as the start of the following day (exclusive)
+   and compared with `<`, so the last day is inclusive and DST in Australia/Sydney cannot shift
+   a boundary. Periods may not overlap.
+10. **Evidence files live in the system context** (filearea `evidence`, itemid = entry id), not
+    the member's user context, so deleting an account does not silently delete compliance
+    evidence. Retention is handled by the privacy provider.
+11. **CI runs on pull requests and `main` only** (no schedule) while the repo is private.
+
+## Licensing note
+
+The plugin is Mode A (proprietary, SCCA). If it is ever open-sourced it becomes Mode B: that
+needs SCCA's written permission, GPLv3+ headers and `@license` tags on every file, and removal
+of the licence overrides in `.phpcs.xml`.
+
+## Build plan
+
+| Phase | Delivers | Status |
+|---|---|---|
+| 1. Foundation | Skeleton and CI; schema, capabilities, settings; category, period and target admin | In progress |
+| 2. Capture | Entry form, validation, evidence upload, pluginfile callback, draft and submit | |
+| 3. Approval | Staff queue, approve / reject / reverse, events, message providers | |
+| 4. Reporting | Member progress page; Report Builder source for staff | |
+| 5. Privacy and hardening | Full privacy provider, PHPUnit and Behat coverage | |
+| 6. iMIS push | On hold until the iMIS write path is proven in sccadev | |
+| 7. iMIS pull | Read-only import and conflict detection | |
+| 8. Calendar and events | Period dates in the calendar; configurable upcoming-events cache | |
+
+## Still open
+
+- Hour targets and category names SCCA actually uses (needed for seed data).
+- Retention position on approved entries under the APPs (delete or anonymise).
+- Whether existing CPD history in iMIS must be visible on day one (would bring phase 7 forward).
+- Whether an iMIS event feed exists or an IQA must be built.
