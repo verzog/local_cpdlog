@@ -72,6 +72,21 @@ final class target_test extends \advanced_testcase
         $this->assertArrayHasKey('requiredhours', self::make_target($periodid, -5)->get_errors());
         $this->assertArrayHasKey('requiredhours', self::make_target($periodid, 1000000)->get_errors());
         $this->assertTrue(self::make_target($periodid, 12.5)->is_valid());
+        $this->assertTrue(self::make_target($periodid, 0.01)->is_valid());
+        $this->assertTrue(self::make_target($periodid, target::MAX_HOURS)->is_valid());
+    }
+
+    /**
+     * Hours with more than two decimal places are rejected, not rounded, so none can become 0.00.
+     */
+    public function test_requiredhours_precision(): void {
+        $this->resetAfterTest();
+        $periodid = self::create_period();
+
+        $this->assertArrayHasKey('requiredhours', self::make_target($periodid, 0.001)->get_errors());
+        $this->assertArrayHasKey('requiredhours', self::make_target($periodid, 0.009)->get_errors());
+        $this->assertArrayHasKey('requiredhours', self::make_target($periodid, 12.345)->get_errors());
+        $this->assertTrue(self::make_target($periodid, 12.34)->is_valid());
     }
 
     /**

@@ -108,13 +108,16 @@ class target extends \core\persistent
     }
 
     /**
-     * Validates that the required hours are positive and fit the column.
+     * Validates that the required hours are positive and fit the two-decimal column.
+     *
+     * Values with more decimal places are rejected rather than rounded, so 0.001 cannot be stored as 0.00.
      *
      * @param float $value The required hours.
      * @return true|lang_string
      */
     protected function validate_requiredhours($value) {
-        if ((float) $value <= 0 || (float) $value > self::MAX_HOURS) {
+        $hours = (float) $value;
+        if ($hours < 0.01 || $hours > self::MAX_HOURS || abs(round($hours, 2) - $hours) > 1e-9) {
             return new lang_string('error:targethours', 'local_cpdlog');
         }
         return true;

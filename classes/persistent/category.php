@@ -92,14 +92,15 @@ class category extends \core\persistent
     /**
      * Moves a category one place up or down the list.
      *
-     * Sort orders are renumbered from zero first, so duplicates or gaps cannot block a move.
+     * Sort orders are renumbered from zero, so duplicates or gaps cannot block a move.
      *
      * @param int $id The category to move.
      * @param bool $up True to move it up, false to move it down.
      */
     public static function move(int $id, bool $up): void {
-        global $DB;
-        $ids = array_map('intval', array_keys($DB->get_records(self::TABLE, null, 'sortorder, id', 'id')));
+        global $DB, $USER;
+        $current = $DB->get_records_menu(self::TABLE, null, 'sortorder, id', 'id, sortorder');
+        $ids = array_map('intval', array_keys($current));
         $position = array_search($id, $ids, true);
         if ($position === false) {
             throw new \invalid_parameter_exception('Unknown category ' . $id);
@@ -108,9 +109,18 @@ class category extends \core\persistent
         if (isset($ids[$swap])) {
             [$ids[$position], $ids[$swap]] = [$ids[$swap], $ids[$position]];
         }
+        // Only rows whose position changes are touched, and they record who changed them and when.
+        $now = time();
         $transaction = $DB->start_delegated_transaction();
         foreach ($ids as $sortorder => $categoryid) {
-            $DB->set_field(self::TABLE, 'sortorder', $sortorder, ['id' => $categoryid]);
+            if ((int) $current[$categoryid] !== $sortorder) {
+                $DB->update_record(self::TABLE, (object) [
+                    'id' => $categoryid,
+                    'sortorder' => $sortorder,
+                    'timemodified' => $now,
+                    'usermodified' => $USER->id,
+                ]);
+            }
         }
         $transaction->allow_commit();
     }

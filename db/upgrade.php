@@ -11,7 +11,7 @@
 // prior written permission of Skin Cancer College Australasia. The software
 // is provided "as is", without warranty of any kind, express or implied.
 /**
- * Post-install steps for the CPD logbook plugin.
+ * Upgrade steps for the CPD logbook plugin.
  *
  * @package    local_cpdlog
  * @copyright  © Skin Cancer College Australasia
@@ -19,11 +19,17 @@
  */
 
 /**
- * Adds the starting categories that staff can rename, disable or add to.
+ * Upgrades the CPD logbook plugin.
  *
+ * @param int $oldversion The version being upgraded from.
  * @return bool
  */
-function xmldb_local_cpdlog_install() {
-    \local_cpdlog\local\setup::add_default_categories();
+function xmldb_local_cpdlog_upgrade($oldversion) {
+    if ($oldversion < 2026092403) {
+        // Sites installed before the starting categories existed get them now.
+        \local_cpdlog\local\setup::add_default_categories();
+        upgrade_plugin_savepoint(true, 2026092403, 'local', 'cpdlog');
+    }
+
     return true;
 }

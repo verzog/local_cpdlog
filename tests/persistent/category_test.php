@@ -86,6 +86,29 @@ final class category_test extends \advanced_testcase
     }
 
     /**
+     * Moving records who changed the moved categories and when, and leaves the others alone.
+     */
+    public function test_move_updates_audit_fields(): void {
+        global $DB;
+        $this->resetAfterTest();
+        $this->setAdminUser();
+        $DB->set_field(category::TABLE, 'timemodified', 1000);
+        $DB->set_field(category::TABLE, 'usermodified', 0);
+        $id = fn(string $shortname) => (int) category::get_record(['shortname' => $shortname])->get('id');
+
+        category::move($id('MO'), true);
+
+        foreach (['RP', 'MO'] as $shortname) {
+            $record = $DB->get_record(category::TABLE, ['shortname' => $shortname]);
+            $this->assertGreaterThan(1000, (int) $record->timemodified, $shortname);
+            $this->assertEquals(get_admin()->id, $record->usermodified, $shortname);
+        }
+        $unmoved = $DB->get_record(category::TABLE, ['shortname' => 'EA']);
+        $this->assertEquals(1000, $unmoved->timemodified);
+        $this->assertEquals(0, $unmoved->usermodified);
+    }
+
+    /**
      * New categories sort after existing ones.
      */
     public function test_next_sortorder(): void {
