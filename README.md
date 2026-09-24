@@ -31,6 +31,22 @@ Notifications_ to complete the installation, or run
 
 to complete the installation from the command line.
 
+## Logging CPD
+
+Members open _My CPD logbook_ from their profile page (or `/local/cpdlog/index.php`) and log
+activities against courses they are or were enrolled in, or have completed. An activity's date
+must fall in an open reporting period, and its hours are limited by the _Maximum hours per entry_
+setting. Entries are saved as drafts and then submitted for review; a submitted entry cannot be
+changed by the member. Entries imported from iMIS are shown read-only.
+
+## Privacy and data deletion
+
+CPD records are retained compliance records and are never deleted automatically. The privacy
+provider exports a member's CPD data on request, but deletion requests, expired-context clean-up
+and account deletion leave CPD records in place. Reject or hand-process CPD deletion requests
+under _Site administration > Users > Privacy and policies > Data requests_; staff delete CPD
+records manually.
+
 ## Setting up approvers
 
 CPD entries are approved by a designated site-level role. After installing:
