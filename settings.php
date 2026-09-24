@@ -11,7 +11,7 @@
 // prior written permission of Skin Cancer College Australasia. The software
 // is provided "as is", without warranty of any kind, express or implied.
 /**
- * Admin settings for the CPD logbook plugin.
+ * Admin settings and management pages for the CPD logbook plugin.
  *
  * @package    local_cpdlog
  * @copyright  © Skin Cancer College Australasia
@@ -20,10 +20,10 @@
 
 defined('MOODLE_INTERNAL') || die();
 
-if ($hassiteconfig) {
-    $settings = new admin_settingpage('local_cpdlog', new lang_string('pluginname', 'local_cpdlog'));
-    $ADMIN->add('localplugins', $settings);
+$ADMIN->add('localplugins', new admin_category('local_cpdlog', new lang_string('pluginname', 'local_cpdlog')));
 
+if ($hassiteconfig) {
+    $settings = new admin_settingpage('local_cpdlog_settings', new lang_string('settings', 'local_cpdlog'));
     if ($ADMIN->fulltree) {
         $settings->add(new admin_setting_configtext(
             'local_cpdlog/maxhoursperentry',
@@ -33,4 +33,19 @@ if ($hassiteconfig) {
             PARAM_FLOAT
         ));
     }
+    $ADMIN->add('local_cpdlog', $settings);
 }
+
+// Management pages are visible to holders of local/cpdlog:manageperiods, not only site administrators.
+$ADMIN->add('local_cpdlog', new admin_externalpage(
+    'local_cpdlog_categories',
+    new lang_string('categories', 'local_cpdlog'),
+    new moodle_url('/local/cpdlog/admin/categories.php'),
+    'local/cpdlog:manageperiods'
+));
+$ADMIN->add('local_cpdlog', new admin_externalpage(
+    'local_cpdlog_periods',
+    new lang_string('periods', 'local_cpdlog'),
+    new moodle_url('/local/cpdlog/admin/periods.php'),
+    'local/cpdlog:manageperiods'
+));
