@@ -13,9 +13,15 @@ scoping", 24/09/2026). Where this file and the scoping document differ, this fil
 2. **Approval is by a designated site-level role.** `local/cpdlog:approve` stays at system
    context; SCCA assigns it to a named approver role. Course-specific approvers are out of scope.
 3. **Cohort target conflicts go to a staff conflict list.** When a member belongs to more than
-   one cohort with different targets for the same period, the conflict is listed for staff, who
-   choose which cohort's target applies to that member. The choice is recorded. Until it is
-   made, the all-members target applies.
+   one cohort with targets for the same period, the conflict is listed for staff, who choose
+   which cohort's targets apply to that member, or none. The choice is recorded. Until it is
+   made, only the all-members targets apply.
+   - **Cohort targets add on to the all-members targets** (agreed 24/09/2026). Everyone is
+     measured against the all-members targets; a member's cohort adds its own targets rather
+     than replacing them. A choice only counts while the conflict remains and the chosen cohort
+     is still one of the member's. Otherwise it is ignored: the member reappears on the conflict
+     list, or, once down to a single cohort with targets, gets that cohort's targets even if
+     staff had chosen none.
 4. **Reversal is a status.** A final `reversed` status is added. Reversing an approved entry
    keeps the original visible and fires `entry_reversed`; only staff can reverse.
 5. **Rejected is a stored status.** Rejection sets `rejected` with a reason, so rejections can be
@@ -63,7 +69,8 @@ scoping", 24/09/2026). Where this file and the scoping document differ, this fil
   JavaScript.
 - Seed data is the three RACGP categories only. No periods or targets are seeded until SCCA
   confirms its requirements.
-- Cohort conflict resolution (decision 3) is a separate follow-up PR.
+- Cohort conflict resolution (decision 3) is in `local_cpdlog\local\target_resolver`,
+  which also answers which targets apply to a member; reporting (phase 4) reuses it.
 
 ## Licensing note
 
@@ -75,7 +82,7 @@ of the licence overrides in `.phpcs.xml`.
 
 | Phase | Delivers | Status |
 |---|---|---|
-| 1. Foundation | Skeleton, CI, schema, capabilities, settings, admin pages (done); cohort conflicts | In progress |
+| 1. Foundation | Skeleton, CI, schema, capabilities, settings, admin pages, cohort conflicts | Done |
 | 2. Capture | Entry form, validation, evidence upload, pluginfile callback, draft and submit | |
 | 3. Approval | Staff queue, approve / reject / reverse, events, message providers | |
 | 4. Reporting | Member progress page; Report Builder source for staff | |

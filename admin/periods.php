@@ -18,6 +18,7 @@
  * @license    Proprietary — Skin Cancer College Australasia, all rights reserved
  */
 
+use local_cpdlog\local\target_resolver;
 use local_cpdlog\persistent\period;
 use local_cpdlog\persistent\target;
 
@@ -67,6 +68,7 @@ $table->head = [
     get_string('lastday', 'local_cpdlog'),
     get_string('status'),
     get_string('targets', 'local_cpdlog'),
+    get_string('unresolvedconflicts', 'local_cpdlog'),
     get_string('actions'),
 ];
 $table->attributes['class'] = 'generaltable local-cpdlog-periods';
@@ -96,6 +98,10 @@ foreach (period::get_records([], 'startdate') as $period) {
         userdate($period->get_lastday(), $dateformat, $timezone, false),
         get_string('status' . $period->get('status'), 'local_cpdlog'),
         html_writer::link($targetsurl, target::count_records(['periodid' => $id])),
+        html_writer::link(
+            new moodle_url('/local/cpdlog/admin/conflicts.php', ['periodid' => $id]),
+            count(array_filter(target_resolver::get_conflicts($id), fn($conflict) => !$conflict->resolved))
+        ),
         implode(' ', $actions),
     ];
 }
