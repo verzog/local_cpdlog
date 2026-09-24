@@ -163,6 +163,20 @@ final class target_resolver_test extends \advanced_testcase
     }
 
     /**
+     * A choice of none stops counting once the conflict is gone, so the remaining cohort's targets apply.
+     */
+    public function test_none_choice_ignored_without_conflict(): void {
+        $userid = $this->create_member(['FEL', 'REG']);
+        target_resolver::set_choice($userid, $this->periodid, null, (int) get_admin()->id);
+        $this->assertSame(['Total'], $this->applicable($userid));
+
+        cohort_remove_member($this->cohorts['REG']->id, $userid);
+
+        $this->assertSame(['Total', 'Fellows'], $this->applicable($userid));
+        $this->assertArrayNotHasKey($userid, target_resolver::get_conflicts($this->periodid));
+    }
+
+    /**
      * Deleted users and targets in other periods are not conflicts.
      */
     public function test_conflicts_ignore_deleted_users_and_other_periods(): void {

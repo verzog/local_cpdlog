@@ -18,9 +18,10 @@ scoping", 24/09/2026). Where this file and the scoping document differ, this fil
    made, only the all-members targets apply.
    - **Cohort targets add on to the all-members targets** (agreed 24/09/2026). Everyone is
      measured against the all-members targets; a member's cohort adds its own targets rather
-     than replacing them. A choice that no longer fits (the member has left the chosen cohort) is
-     ignored, so the member reappears on the conflict list or falls back to their single
-     remaining cohort.
+     than replacing them. A choice only counts while the conflict remains and the chosen cohort
+     is still one of the member's. Otherwise it is ignored: the member reappears on the conflict
+     list, or, once down to a single cohort with targets, gets that cohort's targets even if
+     staff had chosen none.
 4. **Reversal is a status.** A final `reversed` status is added. Reversing an approved entry
    keeps the original visible and fires `entry_reversed`; only staff can reverse.
 5. **Rejected is a stored status.** Rejection sets `rejected` with a reason, so rejections can be

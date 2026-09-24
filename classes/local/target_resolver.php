@@ -27,8 +27,9 @@ use local_cpdlog\persistent\target;
  *
  * All-members targets (no cohort) apply to everyone. A cohort's targets are added for its members.
  * A member in two or more cohorts that have targets in the same period is a conflict: until staff
- * choose which cohort's targets to add (or none), only the all-members targets apply. A choice that
- * no longer fits, because the member has left the chosen cohort or it has no targets, is ignored.
+ * choose which cohort's targets to add (or none), only the all-members targets apply. A choice only
+ * counts while the conflict remains and the chosen cohort is still one of the member's; otherwise it
+ * is ignored, including a choice of none once the member is down to a single cohort with targets.
  */
 final class target_resolver
 {
@@ -73,11 +74,15 @@ final class target_resolver
      */
     public static function get_added_cohortid(int $userid, int $periodid): ?int {
         $cohortids = self::get_target_cohortids($userid, $periodid);
+        if (count($cohortids) < 2) {
+            // No conflict, so any recorded choice is out of date: a single cohort's targets apply.
+            return $cohortids[0] ?? null;
+        }
         $choice = self::get_choice($userid, $periodid);
         if ($choice && self::choice_fits($choice, $cohortids)) {
             return $choice->cohortid === null ? null : (int) $choice->cohortid;
         }
-        return count($cohortids) === 1 ? $cohortids[0] : null;
+        return null;
     }
 
     /**
