@@ -54,6 +54,13 @@ scoping", 24/09/2026). Where this file and the scoping document differ, this fil
     against courses they are or were enrolled in, or have completed; only iMIS-origin rows have no
     course. The course name is snapshotted on the entry.
 
+14. **Evidence files** are stored in the system context (file area `evidence`, item id = entry id,
+    per decision 10): up to 5 PDF, Word or image files per entry, within the site's upload size
+    limit. They are served only by `local_cpdlog_pluginfile()`, which loads the entry and allows its
+    owner or holders of `local/cpdlog:viewall`, answers "not found" otherwise, and always forces a
+    download. Evidence changes only while the member can edit the entry, and deleting a draft
+    deletes its files.
+
 ## Schema notes
 
 - `local_cpdlog_target` holds the required hours; `local_cpdlog_target_cat` links the categories
@@ -94,7 +101,7 @@ of the licence overrides in `.phpcs.xml`.
 | Phase | Delivers | Status |
 |---|---|---|
 | 1. Foundation | Skeleton, CI, schema, capabilities, settings, admin pages, cohort conflicts | Done |
-| 2. Capture | Entry form, validation, draft and submit, privacy (done); evidence upload | In progress |
+| 2. Capture | Entry form, validation, draft and submit, privacy, evidence upload | Done |
 | 3. Approval | Staff queue, approve / reject / reverse, events, message providers | |
 | 4. Reporting | Member progress page; Report Builder source for staff | |
 | 5. Privacy and hardening | Full privacy provider, PHPUnit and Behat coverage | |

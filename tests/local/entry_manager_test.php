@@ -344,16 +344,116 @@ final class entry_manager_test extends \advanced_testcase
     }
 
     /**
-     * The form refuses "Save and submit" without evidence for such categories, but allows a draft.
+     * The form refuses "Save and submit" without evidence for such categories, allows a draft, and
+     * accepts a submission once the file manager holds a file.
      */
     public function test_form_requires_evidence_to_submit(): void {
+        $this->setUser($this->member);
         $category = category::get_record(['shortname' => 'EA']);
         $category->set('evidencerequired', true);
         $category->update();
         $form = new \local_cpdlog\form\entry_form(null, ['userid' => (int) $this->member->id, 'entry' => null]);
         $data = (array) $this->details();
 
-        $this->assertArrayHasKey('categoryid', $form->validation($data + ['saveandsubmit' => 1], []));
-        $this->assertArrayNotHasKey('categoryid', $form->validation($data + ['savedraft' => 1], []));
+        $this->assertArrayHasKey('evidence_filemanager', $form->validation($data + ['saveandsubmit' => 1], []));
+        $this->assertArrayNotHasKey('evidence_filemanager', $form->validation($data + ['savedraft' => 1], []));
+
+        $withfile = $data + ['saveandsubmit' => 1, 'evidence_filemanager' => $this->create_draft_file('certificate.pdf')];
+        $this->assertSame([], $form->validation($withfile, []));
+    }
+
+    /**
+     * Creates a file in a new draft area belonging to the current user.
+     *
+     * @param string $filename The file name.
+     * @return int The draft area id.
+     */
+    private function create_draft_file(string $filename): int {
+        global $USER;
+        $draftitemid = file_get_unused_draft_itemid();
+        get_file_storage()->create_file_from_string([
+            'contextid' => \context_user::instance($USER->id)->id,
+            'component' => 'user',
+            'filearea' => 'draft',
+            'itemid' => $draftitemid,
+            'filepath' => '/',
+            'filename' => $filename,
+        ], 'Evidence');
+        return $draftitemid;
+    }
+
+    /**
+     * Evidence is saved from the file manager's draft area, replaced on the next save, and locked with the entry.
+     */
+    public function test_save_evidence(): void {
+        $this->setUser($this->member);
+        $userid = (int) $this->member->id;
+        $entry = entry_manager::save_draft($userid, $this->details());
+
+        entry_manager::save_evidence($entry, $userid, $this->create_draft_file('certificate.pdf'));
+        $names = array_map(fn($file) => $file->get_filename(), entry_manager::get_evidence_files($entry));
+        $this->assertSame(['certificate.pdf'], array_values($names));
+
+        entry_manager::save_evidence($entry, $userid, $this->create_draft_file('attendance.png'));
+        $names = array_map(fn($file) => $file->get_filename(), entry_manager::get_evidence_files($entry));
+        $this->assertSame(['attendance.png'], array_values($names));
+
+        entry_manager::submit($entry, $userid);
+        $this->expectException(\moodle_exception::class);
+        entry_manager::save_evidence(new entry($entry->get('id')), $userid, $this->create_draft_file('late.pdf'));
+    }
+
+    /**
+     * Only the owner, and staff who can view every logbook, may download evidence.
+     */
+    public function test_can_view_evidence(): void {
+        $entry = entry_manager::save_draft((int) $this->member->id, $this->details());
+        $other = $this->getDataGenerator()->create_user();
+        $staff = $this->getDataGenerator()->create_user();
+        $managerrole = $this->getDataGenerator()->create_role();
+        assign_capability('local/cpdlog:viewall', CAP_ALLOW, $managerrole, \context_system::instance());
+        $this->getDataGenerator()->role_assign($managerrole, $staff->id);
+
+        $this->assertTrue(entry_manager::can_view_evidence($entry, (int) $this->member->id));
+        $this->assertFalse(entry_manager::can_view_evidence($entry, (int) $other->id));
+        $this->assertTrue(entry_manager::can_view_evidence($entry, (int) $staff->id));
+    }
+
+    /**
+     * The file-serving callback refuses other file areas, other contexts and users without access.
+     */
+    public function test_pluginfile_refuses(): void {
+        global $CFG;
+        require_once($CFG->dirroot . '/local/cpdlog/lib.php');
+        $entry = $this->getDataGenerator()->get_plugin_generator('local_cpdlog')->create_entry([
+            'userid' => $this->member->id,
+            'periodid' => $this->period->get('id'),
+            'evidence' => 'certificate.pdf',
+        ]);
+        $system = \context_system::instance();
+        $args = [$entry->get('id'), 'certificate.pdf'];
+        $this->setUser($this->getDataGenerator()->create_user());
+
+        $this->assertFalse(local_cpdlog_pluginfile(null, null, $system, 'evidence', $args, true));
+        $this->assertFalse(local_cpdlog_pluginfile(null, null, $system, 'other', $args, true));
+        $usercontext = \context_user::instance($this->member->id);
+        $this->assertFalse(local_cpdlog_pluginfile(null, null, $usercontext, 'evidence', $args, true));
+        $this->assertFalse(local_cpdlog_pluginfile(null, null, $system, 'evidence', [$entry->get('id') + 1, 'x.pdf'], true));
+    }
+
+    /**
+     * Deleting a draft deletes its evidence files too.
+     */
+    public function test_delete_draft_removes_evidence(): void {
+        $entry = $this->getDataGenerator()->get_plugin_generator('local_cpdlog')->create_entry([
+            'userid' => $this->member->id,
+            'periodid' => $this->period->get('id'),
+            'evidence' => 'certificate.pdf, notes.pdf',
+        ]);
+        $this->assertSame(2, entry_manager::count_evidence($entry));
+
+        entry_manager::delete_draft($entry, (int) $this->member->id);
+
+        $this->assertSame(0, entry_manager::count_evidence($entry));
     }
 }

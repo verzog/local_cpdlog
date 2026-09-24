@@ -78,6 +78,15 @@ class entry_form extends \moodleform
         $mform->addElement('editor', 'description_editor', get_string('description'), null, self::editor_options());
         $mform->setType('description_editor', PARAM_RAW);
 
+        $mform->addElement(
+            'filemanager',
+            'evidence_filemanager',
+            get_string('evidence', 'local_cpdlog'),
+            null,
+            entry_manager::evidence_options()
+        );
+        $mform->addHelpButton('evidence_filemanager', 'evidence', 'local_cpdlog');
+
         $buttons = [
             $mform->createElement('submit', 'savedraft', get_string('savedraft', 'local_cpdlog')),
             $mform->createElement('submit', 'saveandsubmit', get_string('saveandsubmit', 'local_cpdlog')),
@@ -88,7 +97,7 @@ class entry_form extends \moodleform
     }
 
     /**
-     * Returns the description editor options. Evidence files are uploaded separately.
+     * Returns the description editor options. Evidence files have their own file manager.
      *
      * @return array
      */
@@ -107,12 +116,13 @@ class entry_form extends \moodleform
         $errors = parent::validation($data, $files);
         $errors += entry_manager::validate((int) $this->_customdata['userid'], (object) $data, $this->_customdata['entry']);
 
-        // Submitting straight away needs evidence for categories that require it; drafts do not.
+        // Submitting straight away needs evidence for categories that require it; drafts do not. The
+        // draft area holds the files as they will be saved, including ones already on the entry.
         if (!empty($data['saveandsubmit']) && empty($errors['categoryid'])) {
             $category = category::get_record(['id' => (int) $data['categoryid']]);
-            $entry = $this->_customdata['entry'];
-            if ($category && $category->get('evidencerequired') && (!$entry || !entry_manager::count_evidence($entry))) {
-                $errors['categoryid'] = get_string('error:evidencerequired', 'local_cpdlog');
+            $draftfiles = entry_manager::count_draft_files((int) ($data['evidence_filemanager'] ?? 0));
+            if ($category && $category->get('evidencerequired') && !$draftfiles) {
+                $errors['evidence_filemanager'] = get_string('error:evidencerequired', 'local_cpdlog');
             }
         }
         return $errors;
