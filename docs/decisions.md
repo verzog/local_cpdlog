@@ -51,6 +51,20 @@ scoping", 24/09/2026). Where this file and the scoping document differ, this fil
   reference while blocking a duplicate iMIS row.
 - The maximum hours per entry defaults to 40 as a placeholder until SCCA confirms a value.
 
+## Admin pages (phase 1, part 3)
+
+- Categories, periods and targets are edited through `core\persistent` classes, so validation
+  (unique short names, non-overlapping periods, positive hours) is enforced for every caller, not
+  only the forms.
+- Staff pick a period's last day; it is stored as the start of the following day in the site
+  timezone, using calendar arithmetic (`local_cpdlog\local\dates`). Tests cover the 23- and
+  25-hour days at Sydney DST changes.
+- Target categories are tick boxes rather than an autocomplete, so the form works without
+  JavaScript.
+- Seed data is the three RACGP categories only. No periods or targets are seeded until SCCA
+  confirms its requirements.
+- Cohort conflict resolution (decision 3) is a separate follow-up PR.
+
 ## Licensing note
 
 The plugin is Mode A (proprietary, SCCA). If it is ever open-sourced it becomes Mode B: that
@@ -61,7 +75,7 @@ of the licence overrides in `.phpcs.xml`.
 
 | Phase | Delivers | Status |
 |---|---|---|
-| 1. Foundation | Skeleton and CI (done); schema, capabilities, settings (done); category, period and target admin | In progress |
+| 1. Foundation | Skeleton, CI, schema, capabilities, settings, admin pages (done); cohort conflicts | In progress |
 | 2. Capture | Entry form, validation, evidence upload, pluginfile callback, draft and submit | |
 | 3. Approval | Staff queue, approve / reject / reverse, events, message providers | |
 | 4. Reporting | Member progress page; Report Builder source for staff | |

@@ -46,6 +46,21 @@ CPD entries are approved by a designated site-level role. After installing:
 Members need no role assignment: logging and viewing their own CPD is granted to the
 authenticated user role by default.
 
+## Categories, periods and targets
+
+Staff with `local/cpdlog:manageperiods` maintain the CPD set-up under _Site administration >
+Plugins > Local plugins > CPD logbook_:
+
+- **Categories** group CPD activities. The plugin starts with the three RACGP activity types
+  (Educational activities, Reviewing performance, Measuring outcomes), which can be renamed,
+  reordered, disabled or added to. Categories are disabled rather than deleted, so entries are
+  never orphaned.
+- **Reporting periods** are whole days in the site timezone and cannot overlap. Closing a period
+  locks its entries and targets; it can be reopened. A period can be deleted only while nothing
+  refers to it.
+- **Targets** set the hours required in a period, for all members or one cohort. Tick one
+  category for a per-category minimum, several for a combined minimum, or none for a total.
+
 ## Requirements
 
 | Moodle | PHP |
