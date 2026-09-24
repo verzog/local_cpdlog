@@ -40,6 +40,11 @@ class behat_local_cpdlog_generator extends behat_generator_base
                 'datagenerator' => 'target',
                 'required' => ['period', 'name', 'requiredhours'],
             ],
+            'entries' => [
+                'singular' => 'entry',
+                'datagenerator' => 'entry',
+                'required' => ['user', 'period'],
+            ],
         ];
     }
 }

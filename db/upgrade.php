@@ -25,10 +25,25 @@
  * @return bool
  */
 function xmldb_local_cpdlog_upgrade($oldversion) {
+    global $DB;
+
     if ($oldversion < 2026092403) {
         // Sites installed before the starting categories existed get them now.
         \local_cpdlog\local\setup::add_default_categories();
         upgrade_plugin_savepoint(true, 2026092403, 'local', 'cpdlog');
+    }
+
+    if ($oldversion < 2026092405) {
+        // Entries become persistents, which record who last changed each row.
+        $dbman = $DB->get_manager();
+        $table = new xmldb_table('local_cpdlog_entry');
+        $field = new xmldb_field('usermodified', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0', 'timemodified');
+        if (!$dbman->field_exists($table, $field)) {
+            $dbman->add_field($table, $field);
+        }
+        $key = new xmldb_key('usermodified', XMLDB_KEY_FOREIGN, ['usermodified'], 'user', ['id']);
+        $dbman->add_key($table, $key);
+        upgrade_plugin_savepoint(true, 2026092405, 'local', 'cpdlog');
     }
 
     return true;

@@ -43,6 +43,17 @@ scoping", 24/09/2026). Where this file and the scoping document differ, this fil
     evidence. Retention is handled by the privacy provider.
 11. **CI runs on pull requests and `main` only** (no schedule) while the repo is private.
 
+12. **CPD records are never deleted automatically; deletion is manual** (agreed 24/09/2026). The
+    privacy provider exports a member's CPD data but its delete functions deliberately do nothing,
+    so approved deletion requests, expired-context clean-up and account deletion leave entries,
+    evidence and approval history in place. Staff should reject or hand-process CPD deletion
+    requests in the data privacy tool. Phase 5 adds a staff tool to delete a member's CPD records,
+    behind its own capability (`local/cpdlog:deletedata`, RISK_DATALOSS, no default roles), with a
+    typed confirmation, an audit event, a queued task and a settings kill-switch.
+13. **Entries are logged against a course.** As the scoping document says, members log CPD
+    against courses they are or were enrolled in, or have completed; only iMIS-origin rows have no
+    course. The course name is snapshotted on the entry.
+
 ## Schema notes
 
 - `local_cpdlog_target` holds the required hours; `local_cpdlog_target_cat` links the categories
@@ -83,7 +94,7 @@ of the licence overrides in `.phpcs.xml`.
 | Phase | Delivers | Status |
 |---|---|---|
 | 1. Foundation | Skeleton, CI, schema, capabilities, settings, admin pages, cohort conflicts | Done |
-| 2. Capture | Entry form, validation, evidence upload, pluginfile callback, draft and submit | |
+| 2. Capture | Entry form, validation, draft and submit, privacy (done); evidence upload | In progress |
 | 3. Approval | Staff queue, approve / reject / reverse, events, message providers | |
 | 4. Reporting | Member progress page; Report Builder source for staff | |
 | 5. Privacy and hardening | Full privacy provider, PHPUnit and Behat coverage | |

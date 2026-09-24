@@ -20,6 +20,7 @@
 
 use local_cpdlog\local\dates;
 use local_cpdlog\persistent\category;
+use local_cpdlog\persistent\entry;
 use local_cpdlog\persistent\period;
 use local_cpdlog\persistent\target;
 
@@ -69,6 +70,41 @@ class local_cpdlog_generator extends component_generator_base
         $target = (new target(0, (object) $record))->create();
         $target->set_categoryids($categoryids);
         return $target;
+    }
+
+    /**
+     * Creates an entry directly, in any state, without the member-facing rules.
+     *
+     * @param array $record userid or user (username); periodid or period (name); optionally
+     *                      categoryid or category (short name, default EA), courseid or course (short
+     *                      name), activitydate or day (DD/MM/YYYY, default the period's first day),
+     *                      hours (default 1), status and any other entry field.
+     * @return entry
+     */
+    public function create_entry(array $record): entry {
+        global $DB;
+        if (isset($record['user'])) {
+            $record['userid'] = $DB->get_field('user', 'id', ['username' => $record['user']], MUST_EXIST);
+        }
+        if (isset($record['period'])) {
+            $record['periodid'] = period::get_record(['name' => $record['period']], MUST_EXIST)->get('id');
+        }
+        $period = new period($record['periodid']);
+        $record['categoryid'] = $record['categoryid']
+            ?? category::get_record(['shortname' => $record['category'] ?? 'EA'], MUST_EXIST)->get('id');
+        if (isset($record['course'])) {
+            $course = $DB->get_record('course', ['shortname' => $record['course']], 'id, fullname', MUST_EXIST);
+            $record['courseid'] = $course->id;
+            $record['coursename'] = $course->fullname;
+        }
+        if (isset($record['day'])) {
+            $record['activitydate'] = self::parse_day($record['day']);
+        }
+        $record['activitydate'] = $record['activitydate'] ?? $period->get('startdate');
+        $record['hours'] = $record['hours'] ?? 1;
+        unset($record['user'], $record['period'], $record['category'], $record['course'], $record['day']);
+
+        return (new entry(0, (object) $record))->create();
     }
 
     /**
