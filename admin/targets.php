@@ -18,6 +18,7 @@
  * @license    Proprietary — Skin Cancer College Australasia, all rights reserved
  */
 
+use local_cpdlog\local\target_resolver;
 use local_cpdlog\persistent\category;
 use local_cpdlog\persistent\period;
 use local_cpdlog\persistent\target;
@@ -118,5 +119,11 @@ if ($editable) {
     echo $OUTPUT->notification(get_string('periodclosedtargets', 'local_cpdlog'), 'info');
 }
 echo html_writer::table($table);
+$unresolved = count(array_filter(target_resolver::get_conflicts($periodid), fn($conflict) => !$conflict->resolved));
+echo $OUTPUT->single_button(
+    new moodle_url('/local/cpdlog/admin/conflicts.php', ['periodid' => $periodid]),
+    get_string('cohortconflicts', 'local_cpdlog', $unresolved),
+    'get'
+);
 echo $OUTPUT->single_button(new moodle_url('/local/cpdlog/admin/periods.php'), get_string('backtoperiods', 'local_cpdlog'), 'get');
 echo $OUTPUT->footer();

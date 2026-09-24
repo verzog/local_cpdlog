@@ -60,6 +60,10 @@ Plugins > Local plugins > CPD logbook_:
   refers to it.
 - **Targets** set the hours required in a period, for all members or one cohort. Tick one
   category for a per-category minimum, several for a combined minimum, or none for a total.
+  Everyone must meet the all-members targets; a member's cohort adds its own targets on top.
+- **Cohort conflicts** list members who are in more than one cohort with targets in a period.
+  Staff choose which cohort's targets to add for each, or none. Until then only the all-members
+  targets apply to them.
 
 ## Requirements
 
