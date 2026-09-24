@@ -36,6 +36,9 @@ use local_cpdlog\persistent\period;
  */
 final class entry_manager
 {
+    /** @var string File area holding an entry's evidence files; the item id is the entry id. */
+    const EVIDENCE_AREA = 'evidence';
+
     /**
      * Returns the courses a member can log CPD against: current or past enrolments, and completions.
      *
@@ -168,6 +171,35 @@ final class entry_manager
     }
 
     /**
+     * Counts the evidence files attached to an entry.
+     *
+     * @param entry $entry The entry.
+     * @return int
+     */
+    public static function count_evidence(entry $entry): int {
+        $files = get_file_storage()->get_area_files(
+            \context_system::instance()->id,
+            'local_cpdlog',
+            self::EVIDENCE_AREA,
+            $entry->get('id'),
+            'id',
+            false
+        );
+        return count($files);
+    }
+
+    /**
+     * Whether the entry's category requires evidence and the entry has none yet.
+     *
+     * @param entry $entry The entry.
+     * @return bool
+     */
+    public static function is_missing_evidence(entry $entry): bool {
+        $category = category::get_record(['id' => $entry->get('categoryid')]);
+        return $category && $category->get('evidencerequired') && self::count_evidence($entry) === 0;
+    }
+
+    /**
      * Creates a draft entry, or saves changes to one. Saving a rejected entry returns it to draft.
      *
      * @param int $userid The member.
@@ -220,7 +252,8 @@ final class entry_manager
     }
 
     /**
-     * Submits a draft for staff review, rechecking the rules in case anything changed since it was saved.
+     * Submits a draft for staff review, rechecking the rules in case anything changed since it was saved,
+     * and refusing when the category requires evidence and none is attached.
      *
      * @param entry $entry The draft.
      * @param int $userid The member.
@@ -235,6 +268,9 @@ final class entry_manager
         $errors = self::validate($userid, $entry->to_record(), $entry);
         if ($errors) {
             throw new \moodle_exception('error:entryinvalid', 'local_cpdlog', '', implode(' ', $errors));
+        }
+        if (self::is_missing_evidence($entry)) {
+            throw new \moodle_exception('error:evidencerequired', 'local_cpdlog');
         }
 
         $transaction = $DB->start_delegated_transaction();

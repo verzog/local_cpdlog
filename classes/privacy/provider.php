@@ -161,6 +161,8 @@ class provider implements
                 'description' => format_text($entry->description, $entry->descriptionformat, ['context' => $system]),
                 'status' => $entry->status,
                 'source' => $entry->source,
+                'externalref' => $entry->externalref,
+                'syncstatus' => $entry->syncstatus,
                 'timesubmitted' => $entry->timesubmitted ? transform::datetime($entry->timesubmitted) : null,
                 'timereviewed' => $entry->timereviewed ? transform::datetime($entry->timereviewed) : null,
                 'rejectionreason' => $entry->rejectionreason,

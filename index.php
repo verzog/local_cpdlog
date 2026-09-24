@@ -49,6 +49,9 @@ if ($action !== '') {
     if (!entry_manager::can_edit($entry, (int) $USER->id) || $entry->get('status') !== entry::STATUS_DRAFT) {
         throw new moodle_exception('error:entrylocked', 'local_cpdlog', $url);
     }
+    if ($action === 'submit' && entry_manager::is_missing_evidence($entry)) {
+        throw new moodle_exception('error:evidencerequired', 'local_cpdlog', $url);
+    }
     if (!$confirm) {
         $confirmurl = new moodle_url($url, ['action' => $action, 'id' => $id, 'confirm' => 1]);
         echo $OUTPUT->header();
@@ -101,11 +104,15 @@ foreach (entry::get_records_select('userid = :userid', ['userid' => $USER->id], 
             new moodle_url('/local/cpdlog/edit.php', ['id' => $entryid]),
             new pix_icon('t/edit', get_string('edit'))
         );
-        if ($entry->get('status') === entry::STATUS_DRAFT) {
+        if ($entry->get('status') === entry::STATUS_DRAFT && entry_manager::is_missing_evidence($entry)) {
+            $status .= html_writer::div(get_string('evidenceneeded', 'local_cpdlog'), 'small');
+        } else if ($entry->get('status') === entry::STATUS_DRAFT) {
             $actions[] = $OUTPUT->action_icon(
                 new moodle_url($url, ['action' => 'submit', 'id' => $entryid]),
                 new pix_icon('t/approve', get_string('submit'))
             );
+        }
+        if ($entry->get('status') === entry::STATUS_DRAFT) {
             $actions[] = $OUTPUT->action_icon(
                 new moodle_url($url, ['action' => 'delete', 'id' => $entryid]),
                 new pix_icon('t/delete', get_string('delete'))

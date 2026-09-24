@@ -309,4 +309,51 @@ final class entry_manager_test extends \advanced_testcase
 
         $this->assertSame(entry::STATUS_SUBMITTED, (new entry($entry->get('id')))->get('status'));
     }
+
+    /**
+     * An entry in a category that requires evidence cannot be submitted until a file is attached.
+     */
+    public function test_submit_requires_evidence(): void {
+        $category = category::get_record(['shortname' => 'EA']);
+        $category->set('evidencerequired', true);
+        $category->update();
+        $entry = entry_manager::save_draft((int) $this->member->id, $this->details());
+        $this->assertTrue(entry_manager::is_missing_evidence($entry));
+
+        try {
+            entry_manager::submit($entry, (int) $this->member->id);
+            $this->fail('Expected submission to be refused without evidence.');
+        } catch (\moodle_exception $e) {
+            $this->assertSame('error:evidencerequired', $e->errorcode);
+            $this->assertSame(entry::STATUS_DRAFT, (new entry($entry->get('id')))->get('status'));
+        }
+
+        get_file_storage()->create_file_from_string([
+            'contextid' => \context_system::instance()->id,
+            'component' => 'local_cpdlog',
+            'filearea' => entry_manager::EVIDENCE_AREA,
+            'itemid' => $entry->get('id'),
+            'filepath' => '/',
+            'filename' => 'certificate.pdf',
+        ], 'certificate');
+        $this->assertSame(1, entry_manager::count_evidence($entry));
+        $this->assertFalse(entry_manager::is_missing_evidence($entry));
+
+        entry_manager::submit($entry, (int) $this->member->id);
+        $this->assertSame(entry::STATUS_SUBMITTED, (new entry($entry->get('id')))->get('status'));
+    }
+
+    /**
+     * The form refuses "Save and submit" without evidence for such categories, but allows a draft.
+     */
+    public function test_form_requires_evidence_to_submit(): void {
+        $category = category::get_record(['shortname' => 'EA']);
+        $category->set('evidencerequired', true);
+        $category->update();
+        $form = new \local_cpdlog\form\entry_form(null, ['userid' => (int) $this->member->id, 'entry' => null]);
+        $data = (array) $this->details();
+
+        $this->assertArrayHasKey('categoryid', $form->validation($data + ['saveandsubmit' => 1], []));
+        $this->assertArrayNotHasKey('categoryid', $form->validation($data + ['savedraft' => 1], []));
+    }
 }

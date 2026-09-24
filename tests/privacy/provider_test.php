@@ -96,6 +96,8 @@ final class provider_test extends \core_privacy\tests\provider_testcase
             'reviewedby' => $staff->id,
             'timereviewed' => time(),
             'rejectionreason' => 'Add the certificate',
+            'externalref' => 'IMIS-CPD-42',
+            'syncstatus' => 'sent',
         ]);
         return [$member, $staff, $entry];
     }
@@ -133,6 +135,8 @@ final class provider_test extends \core_privacy\tests\provider_testcase
         $this->assertSame('2.50', $data->entries[0]->hours);
         $this->assertSame('Add the certificate', $data->entries[0]->rejectionreason);
         $this->assertSame('Educational activities', $data->entries[0]->category);
+        $this->assertSame('IMIS-CPD-42', $data->entries[0]->externalref);
+        $this->assertSame('sent', $data->entries[0]->syncstatus);
 
         writer::reset();
         $this->export_context_data_for_user($staff->id, $system, 'local_cpdlog');

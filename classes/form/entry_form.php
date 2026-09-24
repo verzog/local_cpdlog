@@ -105,10 +105,16 @@ class entry_form extends \moodleform
      */
     public function validation($data, $files): array {
         $errors = parent::validation($data, $files);
-        return $errors + entry_manager::validate(
-            (int) $this->_customdata['userid'],
-            (object) $data,
-            $this->_customdata['entry']
-        );
+        $errors += entry_manager::validate((int) $this->_customdata['userid'], (object) $data, $this->_customdata['entry']);
+
+        // Submitting straight away needs evidence for categories that require it; drafts do not.
+        if (!empty($data['saveandsubmit']) && empty($errors['categoryid'])) {
+            $category = category::get_record(['id' => (int) $data['categoryid']]);
+            $entry = $this->_customdata['entry'];
+            if ($category && $category->get('evidencerequired') && (!$entry || !entry_manager::count_evidence($entry))) {
+                $errors['categoryid'] = get_string('error:evidencerequired', 'local_cpdlog');
+            }
+        }
+        return $errors;
     }
 }
