@@ -82,6 +82,7 @@ $table->head = [
     get_string('category'),
     get_string('course'),
     get_string('hours', 'local_cpdlog'),
+    get_string('evidence', 'local_cpdlog'),
     get_string('status'),
     get_string('actions'),
 ];
@@ -125,6 +126,18 @@ foreach (entry::get_records_select('userid = :userid', ['userid' => $USER->id], 
         $categorynames[$entry->get('categoryid')] ?? '',
         format_string((string) $entry->get('coursename')),
         format_float($entry->get('hours'), 2),
+        implode(html_writer::empty_tag('br'), array_map(fn(stored_file $file) => html_writer::link(
+            moodle_url::make_pluginfile_url(
+                $context->id,
+                'local_cpdlog',
+                entry_manager::EVIDENCE_AREA,
+                $entryid,
+                '/',
+                $file->get_filename(),
+                true
+            ),
+            s($file->get_filename())
+        ), entry_manager::get_evidence_files($entry))),
         $status,
         implode(' ', $actions),
     ];

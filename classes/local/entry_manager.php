@@ -39,6 +39,12 @@ final class entry_manager
     /** @var string File area holding an entry's evidence files; the item id is the entry id. */
     const EVIDENCE_AREA = 'evidence';
 
+    /** @var int Most evidence files one entry may have. */
+    const MAX_EVIDENCE_FILES = 5;
+
+    /** @var string[] File types accepted as evidence. */
+    const EVIDENCE_TYPES = ['.pdf', '.doc', '.docx', '.jpg', '.jpeg', '.png'];
+
     /**
      * Returns the courses a member can log CPD against: current or past enrolments, and completions.
      *
@@ -189,6 +195,90 @@ final class entry_manager
     }
 
     /**
+     * Returns the file manager options for evidence uploads.
+     *
+     * @return array
+     */
+    public static function evidence_options(): array {
+        global $CFG;
+        return [
+            'subdirs' => 0,
+            'maxfiles' => self::MAX_EVIDENCE_FILES,
+            'maxbytes' => $CFG->maxbytes,
+            'accepted_types' => self::EVIDENCE_TYPES,
+        ];
+    }
+
+    /**
+     * Returns an entry's evidence files, sorted by name.
+     *
+     * @param entry $entry The entry.
+     * @return \stored_file[]
+     */
+    public static function get_evidence_files(entry $entry): array {
+        return get_file_storage()->get_area_files(
+            \context_system::instance()->id,
+            'local_cpdlog',
+            self::EVIDENCE_AREA,
+            $entry->get('id'),
+            'filename',
+            false
+        );
+    }
+
+    /**
+     * Counts the files in one of the current user's draft file areas.
+     *
+     * @param int $draftitemid The draft area id from a file manager.
+     * @return int
+     */
+    public static function count_draft_files(int $draftitemid): int {
+        global $USER;
+        if (!$draftitemid) {
+            return 0;
+        }
+        $usercontext = \context_user::instance($USER->id);
+        return count(get_file_storage()->get_area_files($usercontext->id, 'user', 'draft', $draftitemid, 'id', false));
+    }
+
+    /**
+     * Replaces an entry's evidence with the files in a draft area.
+     *
+     * @param entry $entry The entry, already saved.
+     * @param int $userid The member.
+     * @param int $draftitemid The draft area id from the form's file manager.
+     * @throws \moodle_exception If the member may not change the entry.
+     */
+    public static function save_evidence(entry $entry, int $userid, int $draftitemid): void {
+        if (!self::can_edit($entry, $userid)) {
+            throw new \moodle_exception('error:entrylocked', 'local_cpdlog');
+        }
+        file_save_draft_area_files(
+            $draftitemid,
+            \context_system::instance()->id,
+            'local_cpdlog',
+            self::EVIDENCE_AREA,
+            $entry->get('id'),
+            self::evidence_options()
+        );
+    }
+
+    /**
+     * Whether a user may download an entry's evidence: its owner, or staff who can view every logbook.
+     *
+     * @param entry $entry The entry.
+     * @param int $userid The user asking.
+     * @return bool
+     */
+    public static function can_view_evidence(entry $entry, int $userid): bool {
+        $context = \context_system::instance();
+        if ((int) $entry->get('userid') === $userid) {
+            return has_capability('local/cpdlog:viewown', $context, $userid);
+        }
+        return has_capability('local/cpdlog:viewall', $context, $userid);
+    }
+
+    /**
      * Whether the entry's category requires evidence and the entry has none yet.
      *
      * @param entry $entry The entry.
@@ -282,7 +372,7 @@ final class entry_manager
     }
 
     /**
-     * Deletes a member's draft. Submitted, rejected and approved entries are kept for the record.
+     * Deletes a member's draft and its evidence. Submitted, rejected and approved entries are kept for the record.
      *
      * @param entry $entry The draft.
      * @param int $userid The member.
@@ -295,6 +385,12 @@ final class entry_manager
         }
         $transaction = $DB->start_delegated_transaction();
         $event = entry_deleted::create_from_entry($entry);
+        get_file_storage()->delete_area_files(
+            \context_system::instance()->id,
+            'local_cpdlog',
+            self::EVIDENCE_AREA,
+            $entry->get('id')
+        );
         $entry->delete();
         $event->trigger();
         $transaction->allow_commit();

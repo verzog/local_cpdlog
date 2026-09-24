@@ -78,7 +78,8 @@ class local_cpdlog_generator extends component_generator_base
      * @param array $record userid or user (username); periodid or period (name); optionally
      *                      categoryid or category (short name, default EA), courseid or course (short
      *                      name), activitydate or day (DD/MM/YYYY, default the period's first day),
-     *                      hours (default 1), status and any other entry field.
+     *                      hours (default 1), evidence (comma-separated file names to attach),
+     *                      status and any other entry field.
      * @return entry
      */
     public function create_entry(array $record): entry {
@@ -102,9 +103,21 @@ class local_cpdlog_generator extends component_generator_base
         }
         $record['activitydate'] = $record['activitydate'] ?? $period->get('startdate');
         $record['hours'] = $record['hours'] ?? 1;
-        unset($record['user'], $record['period'], $record['category'], $record['course'], $record['day']);
+        $evidence = array_filter(array_map('trim', explode(',', $record['evidence'] ?? '')));
+        unset($record['user'], $record['period'], $record['category'], $record['course'], $record['day'], $record['evidence']);
 
-        return (new entry(0, (object) $record))->create();
+        $entry = (new entry(0, (object) $record))->create();
+        foreach ($evidence as $filename) {
+            get_file_storage()->create_file_from_string([
+                'contextid' => context_system::instance()->id,
+                'component' => 'local_cpdlog',
+                'filearea' => \local_cpdlog\local\entry_manager::EVIDENCE_AREA,
+                'itemid' => $entry->get('id'),
+                'filepath' => '/',
+                'filename' => $filename,
+            ], 'Evidence: ' . $filename);
+        }
+        return $entry;
     }
 
     /**

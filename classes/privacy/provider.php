@@ -87,6 +87,8 @@ class provider implements
             'timemodified' => 'privacy:metadata:local_cpdlog_cohortchoice:timemodified',
         ], 'privacy:metadata:local_cpdlog_cohortchoice');
 
+        $collection->add_subsystem_link('core_files', [], 'privacy:metadata:core_files');
+
         // Staff who configure categories, periods and targets are recorded on those rows.
         foreach (self::CONFIG_TABLES as $table) {
             $collection->add_database_table($table, [
@@ -174,6 +176,10 @@ class provider implements
         }
         if ($entries) {
             $writer->export_data([$component, get_string('privacy:entries', 'local_cpdlog')], (object) ['entries' => $entries]);
+        }
+        foreach ($DB->get_fieldset_select('local_cpdlog_entry', 'id', 'userid = :userid', ['userid' => $userid]) as $entryid) {
+            $subcontext = [$component, get_string('privacy:entries', 'local_cpdlog'), (string) $entryid];
+            $writer->export_area_files($subcontext, 'local_cpdlog', 'evidence', $entryid);
         }
 
         $choices = [];

@@ -51,11 +51,17 @@ if ($id) {
 }
 
 $form = new entry_form($url, ['userid' => (int) $USER->id, 'entry' => $entry]);
-if ($entry) {
-    $data = $entry->to_record();
-    $data = file_prepare_standard_editor($data, 'description', entry_form::editor_options());
-    $form->set_data($data);
-}
+$data = $entry ? file_prepare_standard_editor($entry->to_record(), 'description', entry_form::editor_options()) : new stdClass();
+$data = file_prepare_standard_filemanager(
+    $data,
+    'evidence',
+    entry_manager::evidence_options(),
+    $context,
+    'local_cpdlog',
+    entry_manager::EVIDENCE_AREA,
+    $entry ? $entry->get('id') : null
+);
+$form->set_data($data);
 
 if ($form->is_cancelled()) {
     redirect($returnurl);
@@ -64,6 +70,7 @@ if ($data = $form->get_data()) {
     $data->description = $data->description_editor['text'];
     $data->descriptionformat = $data->description_editor['format'];
     $entry = entry_manager::save_draft((int) $USER->id, $data, $entry);
+    entry_manager::save_evidence($entry, (int) $USER->id, (int) $data->evidence_filemanager);
 
     $message = get_string('entrysaved', 'local_cpdlog');
     if (!empty($data->saveandsubmit)) {

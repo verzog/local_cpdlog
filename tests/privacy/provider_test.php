@@ -35,13 +35,14 @@ use PHPUnit\Framework\Attributes\CoversClass;
 final class provider_test extends \core_privacy\tests\provider_testcase
 {
     /**
-     * Every table holding personal data is declared.
+     * Every table holding personal data, and the evidence files, are declared.
      */
     public function test_get_metadata_declares_tables(): void {
         $collection = provider::get_metadata(new collection('local_cpdlog'));
         $names = array_map(fn($item) => $item->get_name(), $collection->get_collection());
 
         $this->assertEqualsCanonicalizing([
+            'core_files',
             'local_cpdlog_category',
             'local_cpdlog_cohortchoice',
             'local_cpdlog_entry',
@@ -70,6 +71,9 @@ final class provider_test extends \core_privacy\tests\provider_testcase
         global $DB;
 
         foreach (provider::get_metadata(new collection('local_cpdlog'))->get_collection() as $item) {
+            if (!$item instanceof \core_privacy\local\metadata\types\database_table) {
+                continue;
+            }
             $columns = $DB->get_columns($item->get_name());
             foreach (array_keys($item->get_privacy_fields()) as $field) {
                 $this->assertArrayHasKey($field, $columns, $item->get_name() . '.' . $field);
@@ -98,6 +102,7 @@ final class provider_test extends \core_privacy\tests\provider_testcase
             'rejectionreason' => 'Add the certificate',
             'externalref' => 'IMIS-CPD-42',
             'syncstatus' => 'sent',
+            'evidence' => 'certificate.pdf',
         ]);
         return [$member, $staff, $entry];
     }
@@ -137,6 +142,12 @@ final class provider_test extends \core_privacy\tests\provider_testcase
         $this->assertSame('Educational activities', $data->entries[0]->category);
         $this->assertSame('IMIS-CPD-42', $data->entries[0]->externalref);
         $this->assertSame('sent', $data->entries[0]->syncstatus);
+        $files = writer::with_context($system)->get_files([
+            $component,
+            get_string('privacy:entries', 'local_cpdlog'),
+            (string) $entry->get('id'),
+        ]);
+        $this->assertArrayHasKey('certificate.pdf', $files);
 
         writer::reset();
         $this->export_context_data_for_user($staff->id, $system, 'local_cpdlog');

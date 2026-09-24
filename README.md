@@ -39,6 +39,11 @@ must fall in an open reporting period, and its hours are limited by the _Maximum
 setting. Entries are saved as drafts and then submitted for review; a submitted entry cannot be
 changed by the member. Entries imported from iMIS are shown read-only.
 
+Members can attach up to 5 evidence files (PDF, Word or image) to an entry. Where a category is
+marked _Evidence required_, an entry cannot be submitted until it has at least one file. Evidence
+is private: only the member and staff with `local/cpdlog:viewall` can download it, and files are
+always downloaded rather than opened in the browser.
+
 ## Privacy and data deletion
 
 CPD records are retained compliance records and are never deleted automatically. The privacy
