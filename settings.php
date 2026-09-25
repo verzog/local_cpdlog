@@ -49,3 +49,10 @@ $ADMIN->add('local_cpdlog', new admin_externalpage(
     new moodle_url('/local/cpdlog/admin/periods.php'),
     'local/cpdlog:manageperiods'
 ));
+// The approval queue is visible to holders of local/cpdlog:approve.
+$ADMIN->add('local_cpdlog', new admin_externalpage(
+    'local_cpdlog_review',
+    new lang_string('approvalqueue', 'local_cpdlog'),
+    new moodle_url('/local/cpdlog/admin/review.php'),
+    'local/cpdlog:approve'
+));

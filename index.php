@@ -18,6 +18,7 @@
  * @license    Proprietary — Skin Cancer College Australasia, all rights reserved
  */
 
+use local_cpdlog\local\display;
 use local_cpdlog\local\entry_manager;
 use local_cpdlog\persistent\category;
 use local_cpdlog\persistent\entry;
@@ -69,8 +70,6 @@ if ($action !== '') {
 }
 
 $cansubmit = has_capability('local/cpdlog:submit', $context);
-$timezone = core_date::get_server_timezone();
-$dateformat = get_string('strftimedatefull', 'local_cpdlog');
 $categorynames = [];
 foreach (category::get_records() as $category) {
     $categorynames[$category->get('id')] = format_string($category->get('name'));
@@ -95,7 +94,7 @@ foreach (entry::get_records_select('userid = :userid', ['userid' => $USER->id], 
     if (!$entry->is_moodle_owned()) {
         $status .= ' ' . html_writer::span(get_string('fromimis', 'local_cpdlog'), 'badge bg-secondary');
     }
-    if ($entry->get('rejectionreason') !== null && $entry->get('rejectionreason') !== '') {
+    if ($entry->get('status') === entry::STATUS_REJECTED) {
         $status .= html_writer::div(get_string('rejectionreasonis', 'local_cpdlog', s($entry->get('rejectionreason'))), 'small');
     }
 
@@ -122,22 +121,11 @@ foreach (entry::get_records_select('userid = :userid', ['userid' => $USER->id], 
     }
 
     $table->data[] = [
-        userdate($entry->get('activitydate'), $dateformat, $timezone, false),
+        display::activity_date($entry),
         $categorynames[$entry->get('categoryid')] ?? '',
         format_string((string) $entry->get('coursename')),
         format_float($entry->get('hours'), 2),
-        implode(html_writer::empty_tag('br'), array_map(fn(stored_file $file) => html_writer::link(
-            moodle_url::make_pluginfile_url(
-                $context->id,
-                'local_cpdlog',
-                entry_manager::EVIDENCE_AREA,
-                $entryid,
-                '/',
-                $file->get_filename(),
-                true
-            ),
-            s($file->get_filename())
-        ), entry_manager::get_evidence_files($entry))),
+        display::evidence_links($entry),
         $status,
         implode(' ', $actions),
     ];

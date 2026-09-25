@@ -88,6 +88,7 @@ class provider implements
         ], 'privacy:metadata:local_cpdlog_cohortchoice');
 
         $collection->add_subsystem_link('core_files', [], 'privacy:metadata:core_files');
+        $collection->add_subsystem_link('core_message', [], 'privacy:metadata:core_message');
 
         // Staff who configure categories, periods and targets are recorded on those rows.
         foreach (self::CONFIG_TABLES as $table) {

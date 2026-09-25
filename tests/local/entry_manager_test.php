@@ -404,19 +404,24 @@ final class entry_manager_test extends \advanced_testcase
     }
 
     /**
-     * Only the owner, and staff who can view every logbook, may download evidence.
+     * Only the owner, staff who can view every logbook, and approvers may download evidence.
      */
     public function test_can_view_evidence(): void {
         $entry = entry_manager::save_draft((int) $this->member->id, $this->details());
         $other = $this->getDataGenerator()->create_user();
         $staff = $this->getDataGenerator()->create_user();
-        $managerrole = $this->getDataGenerator()->create_role();
-        assign_capability('local/cpdlog:viewall', CAP_ALLOW, $managerrole, \context_system::instance());
-        $this->getDataGenerator()->role_assign($managerrole, $staff->id);
+        $viewallrole = $this->getDataGenerator()->create_role();
+        assign_capability('local/cpdlog:viewall', CAP_ALLOW, $viewallrole, \context_system::instance());
+        $this->getDataGenerator()->role_assign($viewallrole, $staff->id);
+        $approver = $this->getDataGenerator()->create_user();
+        $approverrole = $this->getDataGenerator()->create_role();
+        assign_capability('local/cpdlog:approve', CAP_ALLOW, $approverrole, \context_system::instance());
+        $this->getDataGenerator()->role_assign($approverrole, $approver->id);
 
         $this->assertTrue(entry_manager::can_view_evidence($entry, (int) $this->member->id));
         $this->assertFalse(entry_manager::can_view_evidence($entry, (int) $other->id));
         $this->assertTrue(entry_manager::can_view_evidence($entry, (int) $staff->id));
+        $this->assertTrue(entry_manager::can_view_evidence($entry, (int) $approver->id));
     }
 
     /**

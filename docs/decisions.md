@@ -57,9 +57,20 @@ scoping", 24/09/2026). Where this file and the scoping document differ, this fil
 14. **Evidence files** are stored in the system context (file area `evidence`, item id = entry id,
     per decision 10): up to 5 PDF, Word or image files per entry, within the site's upload size
     limit. They are served only by `local_cpdlog_pluginfile()`, which loads the entry and allows its
-    owner or holders of `local/cpdlog:viewall`, answers "not found" otherwise, and always forces a
-    download. Evidence changes only while the member can edit the entry, and deleting a draft
-    deletes its files.
+    owner or holders of `local/cpdlog:viewall` or `local/cpdlog:approve` (approvers need the
+    evidence to review), answers "not found" otherwise, and always forces a download. Evidence
+    changes only while the member can edit the entry, and deleting a draft deletes its files.
+15. **Approval rules** (agreed 25/09/2026). Approvers review submitted entries in an approval
+    queue, oldest submission first.
+    - Rejecting and reversing both require a reason, which the member sees in their logbook and
+      in the notification.
+    - Approvers can never review their own entries; another approver must.
+    - Entries in a closed period cannot be reviewed until the period is reopened.
+    - Approvers can tick up to 50 entries on a page and approve them together, after a
+      confirmation. Rejection is one entry at a time, because each needs its own reason.
+    - Notifications (popup and email by default, adjustable in each person's notification
+      preferences): members hear when an entry is approved or rejected, and every approver
+      except the member hears when an entry is submitted.
 
 ## Schema notes
 
@@ -102,7 +113,7 @@ of the licence overrides in `.phpcs.xml`.
 |---|---|---|
 | 1. Foundation | Skeleton, CI, schema, capabilities, settings, admin pages, cohort conflicts | Done |
 | 2. Capture | Entry form, validation, draft and submit, privacy, evidence upload | Done |
-| 3. Approval | Staff queue, approve / reject / reverse, events, message providers | |
+| 3. Approval | Staff queue, approve / reject / reverse, events, message providers | In progress: reversal next |
 | 4. Reporting | Member progress page; Report Builder source for staff | |
 | 5. Privacy and hardening | Full privacy provider, PHPUnit and Behat coverage | |
 | 6. iMIS push | On hold until the iMIS write path is proven in sccadev | |

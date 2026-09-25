@@ -40,7 +40,7 @@ function local_cpdlog_myprofile_navigation(\core_user\output\myprofile\tree $tre
 }
 
 /**
- * Serves evidence files, only to the entry's owner or to staff who can view every logbook.
+ * Serves evidence files, only to the entry's owner, staff who can view every logbook, and approvers.
  *
  * Only the evidence area is served. A file id alone is never enough: the entry is loaded and its
  * owner checked on every request. Files are always downloaded, never displayed, so an uploaded
