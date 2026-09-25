@@ -25,8 +25,8 @@ use local_cpdlog\persistent\entry;
 /**
  * Sends CPD logbook notifications.
  *
- * Messages come from the no-reply user and are sent after the change is committed. Each person
- * chooses how they receive them in their notification preferences.
+ * Messages come from the no-reply user, are sent after the change is committed, and are written in
+ * the recipient's language. Each person chooses how they receive them in their notification preferences.
  */
 final class notifier
 {
@@ -38,23 +38,12 @@ final class notifier
     public static function entry_submitted(entry $entry): void {
         $memberid = (int) $entry->get('userid');
         $membername = fullname(\core_user::get_user($memberid, '*', MUST_EXIST));
-        $a = self::describe($entry);
-        $a->member = s($membername);
-        $url = new \moodle_url('/local/cpdlog/admin/review.php');
-
-        $approvers = get_users_by_capability(\context_system::instance(), 'local/cpdlog:approve', 'u.id, u.suspended');
+        $approvers = get_users_by_capability(\context_system::instance(), 'local/cpdlog:approve', 'u.id, u.lang, u.suspended');
         foreach ($approvers as $approver) {
             if ((int) $approver->id === $memberid || $approver->suspended) {
                 continue;
             }
-            self::send(
-                'entrysubmitted',
-                (int) $approver->id,
-                get_string('message:entrysubmitted:subject', 'local_cpdlog', $membername),
-                get_string('message:entrysubmitted:body', 'local_cpdlog', $a),
-                $url,
-                get_string('approvalqueue', 'local_cpdlog')
-            );
+            self::send('entrysubmitted', $approver, 'message:entrysubmitted', $entry, ['member' => $membername]);
         }
     }
 
@@ -64,61 +53,53 @@ final class notifier
      * @param entry $entry The reviewed entry.
      */
     public static function entry_reviewed(entry $entry): void {
-        $status = $entry->get('status');
-        $a = self::describe($entry);
-        $a->reason = nl2br(s((string) $entry->get('rejectionreason')));
-        self::send(
-            'entryoutcome',
-            (int) $entry->get('userid'),
-            get_string('message:entry' . $status . ':subject', 'local_cpdlog', $a),
-            get_string('message:entry' . $status . ':body', 'local_cpdlog', $a),
-            new \moodle_url('/local/cpdlog/index.php'),
-            get_string('mylogbook', 'local_cpdlog')
-        );
+        $member = \core_user::get_user($entry->get('userid'), 'id, lang', MUST_EXIST);
+        $extra = ['reason' => (string) $entry->get('rejectionreason')];
+        self::send('entryoutcome', $member, 'message:entry' . $entry->get('status'), $entry, $extra);
     }
 
     /**
-     * Returns the entry details used in messages, escaped for HTML.
+     * Sends one notification, written in the recipient's language.
      *
-     * @param entry $entry The entry.
-     * @return \stdClass date, course and hours.
+     * @param string $provider The message provider in db/messages.php: entryoutcome or entrysubmitted.
+     * @param \stdClass $recipient The recipient, with id and lang.
+     * @param string $identifier The string identifier prefix; ':subject' and ':body' are appended.
+     * @param entry $entry The entry the message is about.
+     * @param string[] $extra Further plain-text values for the strings, such as member or reason.
      */
-    private static function describe(entry $entry): \stdClass {
-        $dateformat = get_string('strftimedatefull', 'local_cpdlog');
-        return (object) [
-            'date' => userdate($entry->get('activitydate'), $dateformat, \core_date::get_server_timezone(), false),
-            'course' => format_string((string) $entry->get('coursename')),
-            'hours' => format_float($entry->get('hours'), 2),
-        ];
-    }
+    private static function send(string $provider, \stdClass $recipient, string $identifier, entry $entry, array $extra): void {
+        $oldlang = force_current_language($recipient->lang ?? '');
+        try {
+            $dateformat = get_string('strftimedatefull', 'local_cpdlog');
+            $values = [
+                'date' => userdate($entry->get('activitydate'), $dateformat, \core_date::get_server_timezone(), false),
+                'course' => format_string((string) $entry->get('coursename'), true, ['escape' => false]),
+                'hours' => format_float($entry->get('hours'), 2),
+            ] + $extra;
+            // The subject is plain text; the body is HTML, so its values are escaped.
+            $html = array_map(fn($value) => nl2br(s($value)), $values);
+            $subject = get_string($identifier . ':subject', 'local_cpdlog', (object) $values);
+            $body = get_string($identifier . ':body', 'local_cpdlog', (object) $html);
+            if ($provider === 'entrysubmitted') {
+                $url = new \moodle_url('/local/cpdlog/admin/review.php');
+                $urlname = get_string('approvalqueue', 'local_cpdlog');
+            } else {
+                $url = new \moodle_url('/local/cpdlog/index.php');
+                $urlname = get_string('mylogbook', 'local_cpdlog');
+            }
+        } finally {
+            force_current_language($oldlang);
+        }
 
-    /**
-     * Sends one notification.
-     *
-     * @param string $provider The message provider in db/messages.php.
-     * @param int $userid The recipient.
-     * @param string $subject The subject.
-     * @param string $html The message body as HTML.
-     * @param \moodle_url $url The page the message links to.
-     * @param string $urlname The link text.
-     */
-    private static function send(
-        string $provider,
-        int $userid,
-        string $subject,
-        string $html,
-        \moodle_url $url,
-        string $urlname
-    ): void {
         $message = new \core\message\message();
         $message->component = 'local_cpdlog';
         $message->name = $provider;
         $message->userfrom = \core_user::get_noreply_user();
-        $message->userto = $userid;
+        $message->userto = (int) $recipient->id;
         $message->subject = $subject;
-        $message->fullmessage = html_to_text($html);
+        $message->fullmessage = html_to_text($body);
         $message->fullmessageformat = FORMAT_PLAIN;
-        $message->fullmessagehtml = $html;
+        $message->fullmessagehtml = $body;
         $message->smallmessage = $subject;
         $message->notification = 1;
         $message->contexturl = $url->out(false);

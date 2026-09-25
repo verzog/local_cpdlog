@@ -166,6 +166,31 @@ final class review_manager_test extends \advanced_testcase
     }
 
     /**
+     * When two approvers act on the same entry at once, only the first review counts.
+     */
+    public function test_concurrent_reviews(): void {
+        $entry = $this->submitted();
+        // Each approver loaded the entry while it was still submitted.
+        $first = new entry($entry->get('id'));
+        $second = new entry($entry->get('id'));
+        $messages = $this->redirectMessages();
+
+        review_manager::approve($first, (int) $this->approver->id);
+        try {
+            review_manager::reject($second, (int) $this->approver2->id, 'Too late.');
+            $this->fail('A second review replaced the first.');
+        } catch (\moodle_exception $e) {
+            $this->assertSame('error:entrynotreviewable', $e->errorcode);
+        }
+
+        $saved = new entry($entry->get('id'));
+        $this->assertSame(entry::STATUS_APPROVED, $saved->get('status'));
+        $this->assertEquals($this->approver->id, $saved->get('reviewedby'));
+        $this->assertNull($saved->get('rejectionreason'));
+        $this->assertCount(1, $messages->get_messages());
+    }
+
+    /**
      * Rejecting needs a reason, which is stored, logged and sent to the member.
      */
     public function test_reject(): void {

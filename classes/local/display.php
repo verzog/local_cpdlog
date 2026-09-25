@@ -39,6 +39,22 @@ final class display
     }
 
     /**
+     * Returns the member's description of the activity, formatted for display.
+     *
+     * The description editor allows no embedded files, so there are no file URLs to rewrite.
+     *
+     * @param entry $entry The entry.
+     * @return string HTML.
+     */
+    public static function description(entry $entry): string {
+        return format_text(
+            (string) $entry->get('description'),
+            $entry->get('descriptionformat'),
+            ['context' => \context_system::instance()]
+        );
+    }
+
+    /**
      * Returns download links for an entry's evidence files, one per line.
      *
      * @param entry $entry The entry.

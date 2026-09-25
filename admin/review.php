@@ -91,8 +91,9 @@ if ($action !== '') {
     throw new moodle_exception('invalidaction', 'error');
 }
 
-$select = 'status = :status';
-$params = ['status' => entry::STATUS_SUBMITTED];
+// Entries owned by iMIS are never reviewed here, so they are left out.
+$select = 'status = :status AND source = :source';
+$params = ['status' => entry::STATUS_SUBMITTED, 'source' => entry::SOURCE_MOODLE];
 $total = entry::count_records_select($select, $params);
 // Oldest submission first, so nothing waits indefinitely.
 $entries = entry::get_records_select(
@@ -130,6 +131,7 @@ $table->head = [
     get_string('category'),
     get_string('course'),
     get_string('hours', 'local_cpdlog'),
+    get_string('description'),
     get_string('evidence', 'local_cpdlog'),
     get_string('actions'),
 ];
@@ -175,6 +177,7 @@ foreach ($entries as $entry) {
         $categorynames[$entry->get('categoryid')] ?? '',
         format_string((string) $entry->get('coursename')),
         format_float($entry->get('hours'), 2),
+        display::description($entry),
         display::evidence_links($entry),
         $actions,
     ];

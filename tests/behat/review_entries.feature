@@ -19,15 +19,18 @@ Feature: Approving and rejecting CPD entries
       | name | firstday   | lastday    |
       | 2026 | 01/01/2026 | 31/12/2026 |
     And the following "local_cpdlog > entries" exist:
-      | user      | period | course | day        | hours | status    | evidence        |
-      | member1   | 2026   | DERM   | 10/03/2026 | 2     | submitted | certificate.pdf |
-      | member1   | 2026   | DERM   | 11/03/2026 | 3     | submitted |                 |
-      | approver1 | 2026   | DERM   | 12/03/2026 | 1     | submitted |                 |
+      | user      | period | course | day        | hours | status    | evidence        | description           | source |
+      | member1   | 2026   | DERM   | 10/03/2026 | 2     | submitted | certificate.pdf | Dermoscopy workshop   | moodle |
+      | member1   | 2026   | DERM   | 11/03/2026 | 3     | submitted |                 |                       | moodle |
+      | approver1 | 2026   | DERM   | 12/03/2026 | 1     | submitted |                 |                       | moodle |
+      | member1   | 2026   | DERM   | 13/03/2026 | 1     | submitted |                 | Imported from iMIS    | imis   |
 
   Scenario: An approver approves one entry and the member sees it approved
     Given I log in as "approver1"
     And I navigate to "Plugins > Local plugins > CPD logbook > Approval queue" in site administration
     Then "certificate.pdf" "link" should exist in the "10/03/2026" "table_row"
+    And I should see "Dermoscopy workshop" in the "10/03/2026" "table_row"
+    And I should not see "13/03/2026"
     And I should see "Your own entry. Another approver must review it." in the "12/03/2026" "table_row"
     And "Reject" "link" should not exist in the "12/03/2026" "table_row"
     When I click on "Approve" "link" in the "10/03/2026" "table_row"

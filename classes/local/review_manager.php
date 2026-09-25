@@ -36,6 +36,9 @@ final class review_manager
     /** @var int Most entries approved in one bulk action, and the approval queue's page size. */
     const BULK_LIMIT = 50;
 
+    /** @var int Seconds to wait for another reviewer to finish with the same entry. */
+    const LOCK_TIMEOUT = 5;
+
     /**
      * Whether a reviewer may approve or reject an entry: submitted in Moodle, in an open period, and
      * not the reviewer's own.
@@ -59,18 +62,7 @@ final class review_manager
      * @throws \moodle_exception If the reviewer may not review the entry.
      */
     public static function approve(entry $entry, int $reviewerid): void {
-        global $DB;
-        if (!self::can_review($entry, $reviewerid)) {
-            throw new \moodle_exception('error:entrynotreviewable', 'local_cpdlog');
-        }
-        $transaction = $DB->start_delegated_transaction();
-        $entry->set('status', entry::STATUS_APPROVED);
-        $entry->set('reviewedby', $reviewerid);
-        $entry->set('timereviewed', time());
-        $entry->update();
-        entry_approved::create_from_entry($entry)->trigger();
-        $transaction->allow_commit();
-        notifier::entry_reviewed($entry);
+        self::review($entry, $reviewerid, entry::STATUS_APPROVED);
     }
 
     /**
@@ -82,22 +74,55 @@ final class review_manager
      * @throws \moodle_exception If the reviewer may not review the entry or no reason is given.
      */
     public static function reject(entry $entry, int $reviewerid, string $reason): void {
-        global $DB;
-        if (!self::can_review($entry, $reviewerid)) {
-            throw new \moodle_exception('error:entrynotreviewable', 'local_cpdlog');
-        }
         $reason = trim($reason);
         if ($reason === '') {
             throw new \moodle_exception('error:reasonrequired', 'local_cpdlog');
         }
-        $transaction = $DB->start_delegated_transaction();
-        $entry->set('status', entry::STATUS_REJECTED);
-        $entry->set('reviewedby', $reviewerid);
-        $entry->set('timereviewed', time());
-        $entry->set('rejectionreason', $reason);
-        $entry->update();
-        entry_rejected::create_from_entry($entry)->trigger();
-        $transaction->allow_commit();
+        self::review($entry, $reviewerid, entry::STATUS_REJECTED, $reason);
+    }
+
+    /**
+     * Records a review outcome, one reviewer at a time.
+     *
+     * Two approvers can act on the same entry at once, each holding a copy loaded while it was still
+     * submitted. A lock per entry serialises them, and the entry is reloaded under the lock, so only
+     * the first review is recorded, logged and notified; the second is refused.
+     *
+     * @param entry $entry The entry; reloaded from the database.
+     * @param int $reviewerid The staff member.
+     * @param string $status entry::STATUS_APPROVED or entry::STATUS_REJECTED.
+     * @param string|null $reason The rejection reason, when rejecting.
+     * @throws \moodle_exception If the entry is being reviewed by someone else or may not be reviewed.
+     */
+    private static function review(entry $entry, int $reviewerid, string $status, ?string $reason = null): void {
+        global $DB;
+        $factory = \core\lock\lock_config::get_lock_factory('local_cpdlog_review');
+        $lock = $factory->get_lock('entry' . $entry->get('id'), self::LOCK_TIMEOUT);
+        if (!$lock) {
+            throw new \moodle_exception('error:reviewbusy', 'local_cpdlog');
+        }
+        try {
+            $entry->read();
+            if (!self::can_review($entry, $reviewerid)) {
+                throw new \moodle_exception('error:entrynotreviewable', 'local_cpdlog');
+            }
+            $transaction = $DB->start_delegated_transaction();
+            $entry->set('status', $status);
+            $entry->set('reviewedby', $reviewerid);
+            $entry->set('timereviewed', time());
+            if ($reason !== null) {
+                $entry->set('rejectionreason', $reason);
+            }
+            $entry->update();
+            if ($status === entry::STATUS_APPROVED) {
+                entry_approved::create_from_entry($entry)->trigger();
+            } else {
+                entry_rejected::create_from_entry($entry)->trigger();
+            }
+            $transaction->allow_commit();
+        } finally {
+            $lock->release();
+        }
         notifier::entry_reviewed($entry);
     }
 
@@ -117,9 +142,17 @@ final class review_manager
         $approved = 0;
         foreach ($entryids as $entryid) {
             $entry = entry::get_record(['id' => $entryid]);
-            if ($entry && self::can_review($entry, $reviewerid)) {
+            if (!$entry || !self::can_review($entry, $reviewerid)) {
+                continue;
+            }
+            try {
                 self::approve($entry, $reviewerid);
                 $approved++;
+            } catch (\moodle_exception $e) {
+                // Another approver got there first; any other failure is real.
+                if (!in_array($e->errorcode, ['error:entrynotreviewable', 'error:reviewbusy'], true)) {
+                    throw $e;
+                }
             }
         }
         return $approved;

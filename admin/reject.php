@@ -57,6 +57,7 @@ $details->data = [
     [get_string('category'), $category ? format_string($category->get('name')) : ''],
     [get_string('course'), format_string((string) $entry->get('coursename'))],
     [get_string('hours', 'local_cpdlog'), format_float($entry->get('hours'), 2)],
+    [get_string('description'), display::description($entry)],
     [get_string('evidence', 'local_cpdlog'), display::evidence_links($entry)],
 ];
 
