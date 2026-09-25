@@ -11,7 +11,8 @@
 // prior written permission of Skin Cancer College Australasia. The software
 // is provided "as is", without warranty of any kind, express or implied.
 /**
- * Approval queue: entries members have submitted, for staff to approve or reject.
+ * Approval queue: entries members have submitted, for staff to approve or reject, and approved
+ * entries, which staff can reverse.
  *
  * @package    local_cpdlog
  * @copyright  © Skin Cancer College Australasia
@@ -34,6 +35,7 @@ $action = optional_param('action', '', PARAM_ALPHA);
 $id = optional_param('id', 0, PARAM_INT);
 $confirm = optional_param('confirm', 0, PARAM_BOOL);
 $page = optional_param('page', 0, PARAM_INT);
+$view = optional_param('view', 'submitted', PARAM_ALPHA);
 $url = new moodle_url('/local/cpdlog/admin/review.php');
 $reviewerid = (int) $USER->id;
 
@@ -90,16 +92,24 @@ if ($action === 'bulkapprove') {
 if ($action !== '') {
     throw new moodle_exception('invalidaction', 'error');
 }
+if (!in_array($view, ['submitted', 'approved'], true)) {
+    throw new moodle_exception('invalidparameter', 'debug');
+}
+$approvedview = $view === 'approved';
+$viewurl = new moodle_url($url, ['view' => $view]);
 
-// Entries owned by iMIS are never reviewed here, so they are left out.
+// Entries owned by iMIS are never reviewed or reversed here, so they are left out.
 $select = 'status = :status AND source = :source';
-$params = ['status' => entry::STATUS_SUBMITTED, 'source' => entry::SOURCE_MOODLE];
+$params = [
+    'status' => $approvedview ? entry::STATUS_APPROVED : entry::STATUS_SUBMITTED,
+    'source' => entry::SOURCE_MOODLE,
+];
 $total = entry::count_records_select($select, $params);
-// Oldest submission first, so nothing waits indefinitely.
+// Submissions oldest first, so nothing waits indefinitely; approvals newest first.
 $entries = entry::get_records_select(
     $select,
     $params,
-    'timesubmitted ASC, id ASC',
+    $approvedview ? 'timereviewed DESC, id DESC' : 'timesubmitted ASC, id ASC',
     '*',
     $page * review_manager::BULK_LIMIT,
     review_manager::BULK_LIMIT
@@ -120,13 +130,12 @@ foreach (period::get_records(['status' => period::STATUS_CLOSED]) as $period) {
     $closedperiods[$period->get('id')] = true;
 }
 
-$submittedformat = get_string('strftimedatetimeshort', 'langconfig');
+$timeformat = get_string('strftimedatetimeshort', 'langconfig');
 
 $table = new html_table();
 $table->head = [
-    get_string('select'),
     get_string('member', 'local_cpdlog'),
-    get_string('timesubmitted', 'local_cpdlog'),
+    get_string($approvedview ? 'timeapproved' : 'timesubmitted', 'local_cpdlog'),
     get_string('activitydate', 'local_cpdlog'),
     get_string('category'),
     get_string('course'),
@@ -135,6 +144,9 @@ $table->head = [
     get_string('evidence', 'local_cpdlog'),
     get_string('actions'),
 ];
+if (!$approvedview) {
+    array_unshift($table->head, get_string('select'));
+}
 $table->attributes['class'] = 'generaltable local-cpdlog-review';
 $canselect = false;
 
@@ -146,10 +158,15 @@ foreach ($entries as $entry) {
     $checkbox = '';
     $actions = '';
     if ((int) $entry->get('userid') === $reviewerid) {
-        $actions = html_writer::div(get_string('ownentry', 'local_cpdlog'), 'small');
+        $actions = html_writer::div(get_string($approvedview ? 'ownentryreverse' : 'ownentry', 'local_cpdlog'), 'small');
     } else if (isset($closedperiods[$entry->get('periodid')])) {
         $actions = html_writer::div(get_string('periodclosedreview', 'local_cpdlog'), 'small');
-    } else if (review_manager::can_review($entry, $reviewerid)) {
+    } else if ($approvedview && review_manager::can_reverse($entry, $reviewerid)) {
+        $actions = $OUTPUT->action_icon(
+            new moodle_url('/local/cpdlog/admin/reason.php', ['action' => 'reverse', 'id' => $entryid]),
+            new pix_icon('i/return', get_string('reverse', 'local_cpdlog'))
+        );
+    } else if (!$approvedview && review_manager::can_review($entry, $reviewerid)) {
         $canselect = true;
         $a = (object) ['member' => s($membername), 'date' => display::activity_date($entry)];
         $checkbox = html_writer::checkbox(
@@ -164,15 +181,15 @@ foreach ($entries as $entry) {
             new moodle_url($url, ['action' => 'approve', 'id' => $entryid]),
             new pix_icon('t/approve', get_string('approve'))
         ) . ' ' . $OUTPUT->action_icon(
-            new moodle_url('/local/cpdlog/admin/reject.php', ['id' => $entryid]),
+            new moodle_url('/local/cpdlog/admin/reason.php', ['action' => 'reject', 'id' => $entryid]),
             new pix_icon('t/block', get_string('reject'))
         );
     }
 
-    $table->data[] = [
-        $checkbox,
+    $time = $entry->get($approvedview ? 'timereviewed' : 'timesubmitted');
+    $row = [
         $member ? html_writer::link(new moodle_url('/user/profile.php', ['id' => $member->id]), s($membername)) : '',
-        $entry->get('timesubmitted') ? userdate($entry->get('timesubmitted'), $submittedformat) : '',
+        $time ? userdate($time, $timeformat) : '',
         display::activity_date($entry),
         $categorynames[$entry->get('categoryid')] ?? '',
         format_string((string) $entry->get('coursename')),
@@ -181,28 +198,42 @@ foreach ($entries as $entry) {
         display::evidence_links($entry),
         $actions,
     ];
+    if (!$approvedview) {
+        array_unshift($row, $checkbox);
+    }
+    $table->data[] = $row;
 }
+
+$tabs = [
+    new tabobject('submitted', $url, get_string('waitingforreview', 'local_cpdlog')),
+    new tabobject('approved', new moodle_url($url, ['view' => 'approved']), get_string('approvedentries', 'local_cpdlog')),
+];
 
 echo $OUTPUT->header();
 echo $OUTPUT->heading(get_string('approvalqueue', 'local_cpdlog'));
-echo html_writer::tag('p', get_string('approvalqueue_desc', 'local_cpdlog'));
+echo $OUTPUT->tabtree($tabs, $view);
+echo html_writer::tag('p', get_string($approvedview ? 'approvedentries_desc' : 'approvalqueue_desc', 'local_cpdlog'));
 if (!$table->data) {
-    echo $OUTPUT->notification(get_string('noentriestoreview', 'local_cpdlog'), 'info');
+    echo $OUTPUT->notification(get_string($approvedview ? 'noapprovedentries' : 'noentriestoreview', 'local_cpdlog'), 'info');
     echo $OUTPUT->footer();
     die();
 }
 
-// Explicit file name: a bare directory URL can be refused by the web server.
-echo html_writer::start_tag('form', ['method' => 'post', 'action' => $url->out(false)]);
-echo html_writer::empty_tag('input', ['type' => 'hidden', 'name' => 'action', 'value' => 'bulkapprove']);
-echo html_writer::table($table);
-if ($canselect) {
-    echo html_writer::empty_tag('input', [
-        'type' => 'submit',
-        'class' => 'btn btn-primary',
-        'value' => get_string('approveselected', 'local_cpdlog'),
-    ]);
+if ($approvedview) {
+    echo html_writer::table($table);
+} else {
+    // Explicit file name: a bare directory URL can be refused by the web server.
+    echo html_writer::start_tag('form', ['method' => 'post', 'action' => $url->out(false)]);
+    echo html_writer::empty_tag('input', ['type' => 'hidden', 'name' => 'action', 'value' => 'bulkapprove']);
+    echo html_writer::table($table);
+    if ($canselect) {
+        echo html_writer::empty_tag('input', [
+            'type' => 'submit',
+            'class' => 'btn btn-primary',
+            'value' => get_string('approveselected', 'local_cpdlog'),
+        ]);
+    }
+    echo html_writer::end_tag('form');
 }
-echo html_writer::end_tag('form');
-echo $OUTPUT->paging_bar($total, $page, review_manager::BULK_LIMIT, $url);
+echo $OUTPUT->paging_bar($total, $page, review_manager::BULK_LIMIT, $viewurl);
 echo $OUTPUT->footer();

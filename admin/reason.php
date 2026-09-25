@@ -11,14 +11,14 @@
 // prior written permission of Skin Cancer College Australasia. The software
 // is provided "as is", without warranty of any kind, express or implied.
 /**
- * Rejects a submitted CPD entry, with a reason for the member.
+ * Rejects a submitted CPD entry, or reverses an approved one, with a reason for the member.
  *
  * @package    local_cpdlog
  * @copyright  © Skin Cancer College Australasia
  * @license    Proprietary — Skin Cancer College Australasia, all rights reserved
  */
 
-use local_cpdlog\form\reject_form;
+use local_cpdlog\form\reason_form;
 use local_cpdlog\local\display;
 use local_cpdlog\local\review_manager;
 use local_cpdlog\persistent\category;
@@ -27,30 +27,45 @@ use local_cpdlog\persistent\entry;
 require(__DIR__ . '/../../../config.php');
 require_once($CFG->libdir . '/adminlib.php');
 
+$action = required_param('action', PARAM_ALPHA);
 $id = required_param('id', PARAM_INT);
-$url = new moodle_url('/local/cpdlog/admin/reject.php', ['id' => $id]);
+$url = new moodle_url('/local/cpdlog/admin/reason.php', ['action' => $action, 'id' => $id]);
 
 // Checks login and local/cpdlog:approve at system context.
 admin_externalpage_setup('local_cpdlog_review', '', null, $url);
 
-$queueurl = new moodle_url('/local/cpdlog/admin/review.php');
+if (!in_array($action, ['reject', 'reverse'], true)) {
+    throw new moodle_exception('invalidaction', 'error');
+}
+$reject = $action === 'reject';
+$returnurl = new moodle_url('/local/cpdlog/admin/review.php', $reject ? [] : ['view' => 'approved']);
+
+// State and ownership are checked by the review manager, never taken from the request.
 $entry = new entry($id);
-if (!review_manager::can_review($entry, (int) $USER->id)) {
-    throw new moodle_exception('error:entrynotreviewable', 'local_cpdlog', $queueurl);
+if ($reject && !review_manager::can_review($entry, (int) $USER->id)) {
+    throw new moodle_exception('error:entrynotreviewable', 'local_cpdlog', $returnurl);
+}
+if (!$reject && !review_manager::can_reverse($entry, (int) $USER->id)) {
+    throw new moodle_exception('error:entrynotreversible', 'local_cpdlog', $returnurl);
 }
 
-$form = new reject_form($url);
+$form = new reason_form($url, ['action' => $action]);
 if ($form->is_cancelled()) {
-    redirect($queueurl);
+    redirect($returnurl);
 }
 if ($data = $form->get_data()) {
-    review_manager::reject($entry, (int) $USER->id, $data->reason);
-    redirect($queueurl, get_string('entryrejected', 'local_cpdlog'), null, \core\output\notification::NOTIFY_SUCCESS);
+    if ($reject) {
+        review_manager::reject($entry, (int) $USER->id, $data->reason);
+    } else {
+        review_manager::reverse($entry, (int) $USER->id, $data->reason);
+    }
+    $message = get_string($reject ? 'entryrejected' : 'entryreversed', 'local_cpdlog');
+    redirect($returnurl, $message, null, \core\output\notification::NOTIFY_SUCCESS);
 }
 
 $category = category::get_record(['id' => $entry->get('categoryid')]);
 $details = new html_table();
-$details->attributes['class'] = 'generaltable local-cpdlog-rejectentry';
+$details->attributes['class'] = 'generaltable local-cpdlog-entrydetails';
 $details->data = [
     [get_string('member', 'local_cpdlog'), s(fullname(core_user::get_user($entry->get('userid'), '*', MUST_EXIST)))],
     [get_string('activitydate', 'local_cpdlog'), display::activity_date($entry)],
@@ -61,10 +76,13 @@ $details->data = [
     [get_string('evidence', 'local_cpdlog'), display::evidence_links($entry)],
 ];
 
-$heading = get_string('rejectentry', 'local_cpdlog');
+$heading = get_string($reject ? 'rejectentry' : 'reverseentry', 'local_cpdlog');
 $PAGE->navbar->add($heading);
 echo $OUTPUT->header();
 echo $OUTPUT->heading($heading);
+if (!$reject) {
+    echo $OUTPUT->notification(get_string('reverseentry_desc', 'local_cpdlog'), 'warning');
+}
 echo html_writer::table($details);
 $form->display();
 echo $OUTPUT->footer();

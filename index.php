@@ -97,6 +97,9 @@ foreach (entry::get_records_select('userid = :userid', ['userid' => $USER->id], 
     if ($entry->get('status') === entry::STATUS_REJECTED) {
         $status .= html_writer::div(get_string('rejectionreasonis', 'local_cpdlog', s($entry->get('rejectionreason'))), 'small');
     }
+    if ($entry->get('status') === entry::STATUS_REVERSED) {
+        $status .= html_writer::div(get_string('reversalreasonis', 'local_cpdlog', s($entry->get('reversalreason'))), 'small');
+    }
 
     $actions = [];
     if ($cansubmit && entry_manager::can_edit($entry, (int) $USER->id)) {

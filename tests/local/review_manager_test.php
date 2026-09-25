@@ -11,7 +11,7 @@
 // prior written permission of Skin Cancer College Australasia. The software
 // is provided "as is", without warranty of any kind, express or implied.
 /**
- * Tests for staff approving and rejecting CPD entries.
+ * Tests for staff approving, rejecting and reversing CPD entries.
  *
  * @package    local_cpdlog
  * @copyright  © Skin Cancer College Australasia
@@ -22,13 +22,14 @@ namespace local_cpdlog\local;
 
 use local_cpdlog\event\entry_approved;
 use local_cpdlog\event\entry_rejected;
+use local_cpdlog\event\entry_reversed;
 use local_cpdlog\persistent\category;
 use local_cpdlog\persistent\entry;
 use local_cpdlog\persistent\period;
 use PHPUnit\Framework\Attributes\CoversClass;
 
 /**
- * Tests for staff approving and rejecting CPD entries, and the notifications they send.
+ * Tests for staff approving, rejecting and reversing CPD entries, and the notifications they send.
  */
 #[CoversClass(review_manager::class)]
 #[CoversClass(notifier::class)]
@@ -240,6 +241,68 @@ final class review_manager_test extends \advanced_testcase
         entry_manager::submit($entry, $memberid);
 
         $this->assertTrue(review_manager::can_review(new entry($entry->get('id')), (int) $this->approver->id));
+    }
+
+    /**
+     * Only approved Moodle entries in open periods can be reversed, and never by their owner.
+     */
+    public function test_can_reverse(): void {
+        $reviewerid = (int) $this->approver->id;
+        $approved = ['status' => entry::STATUS_APPROVED];
+
+        $this->assertTrue(review_manager::can_reverse($this->submitted($approved), $reviewerid));
+        $this->assertFalse(review_manager::can_reverse($this->submitted(), $reviewerid));
+        $this->assertFalse(review_manager::can_reverse($this->submitted(['status' => entry::STATUS_REJECTED]), $reviewerid));
+        $this->assertFalse(review_manager::can_reverse($this->submitted(['status' => entry::STATUS_REVERSED]), $reviewerid));
+        $this->assertFalse(review_manager::can_reverse($this->submitted($approved + ['userid' => $reviewerid]), $reviewerid));
+        $imis = $this->submitted($approved + ['source' => entry::SOURCE_IMIS]);
+        $this->assertFalse(review_manager::can_reverse($imis, $reviewerid));
+        $closed = $this->submitted($approved + ['periodid' => $this->closed->get('id'), 'day' => '10/03/2025']);
+        $this->assertFalse(review_manager::can_reverse($closed, $reviewerid));
+    }
+
+    /**
+     * Reversing needs a reason, is recorded, logged and sent to the member, and is final.
+     */
+    public function test_reverse(): void {
+        $entry = $this->submitted();
+        review_manager::approve($entry, (int) $this->approver->id);
+        $this->setUser($this->approver2);
+
+        try {
+            review_manager::reverse($entry, (int) $this->approver2->id, ' ');
+            $this->fail('An approval was reversed without a reason.');
+        } catch (\moodle_exception $e) {
+            $this->assertSame('error:reversalreasonrequired', $e->errorcode);
+        }
+        $this->assertSame(entry::STATUS_APPROVED, (new entry($entry->get('id')))->get('status'));
+
+        $events = $this->redirectEvents();
+        $messages = $this->redirectMessages();
+        review_manager::reverse($entry, (int) $this->approver2->id, 'Duplicate of <another> entry.');
+
+        $saved = new entry($entry->get('id'));
+        $this->assertSame(entry::STATUS_REVERSED, $saved->get('status'));
+        $this->assertEquals($this->approver2->id, $saved->get('reversedby'));
+        $this->assertNotNull($saved->get('timereversed'));
+        $this->assertSame('Duplicate of <another> entry.', $saved->get('reversalreason'));
+        // The original approval stays on record.
+        $this->assertEquals($this->approver->id, $saved->get('reviewedby'));
+        $reversed = array_filter($events->get_events(), fn($event) => $event instanceof entry_reversed);
+        $this->assertCount(1, $reversed);
+
+        $sent = $messages->get_messages();
+        $this->assertCount(1, $sent);
+        $this->assertEquals($this->member->id, $sent[0]->useridto);
+        $this->assertSame('entryoutcome', $sent[0]->eventtype);
+        $this->assertSame('CPD activity approval reversed', $sent[0]->subject);
+        $this->assertStringContainsString('Duplicate of &lt;another&gt; entry.', $sent[0]->fullmessagehtml);
+
+        // Reversal is final: the member cannot edit it, and it cannot be reviewed or reversed again.
+        $this->assertFalse(entry_manager::can_edit($saved, (int) $this->member->id));
+        $this->assertFalse(review_manager::can_review($saved, (int) $this->approver->id));
+        $this->expectException(\moodle_exception::class);
+        review_manager::reverse($saved, (int) $this->approver->id, 'Again.');
     }
 
     /**

@@ -52,8 +52,11 @@ can be approved, or rejected with a reason the member sees; a rejected entry goe
 member to edit and resubmit. Up to 50 entries on a page can be ticked and approved together.
 Approvers cannot review their own entries, or entries in a closed period.
 
-Members are notified when an entry is approved or rejected, and approvers when an entry is
-submitted. Notifications are sent as a popup and by email by default; each person can change this
+An approval made in error can be reversed from the queue's _Approved entries_ tab, with a reason.
+Reversal is final: the entry stays in the member's logbook as reversed and no longer counts.
+
+Members are notified when an entry is approved, rejected or reversed, and approvers when an entry
+is submitted. Notifications are sent as a popup and by email by default; each person can change this
 in their notification preferences.
 
 ## Privacy and data deletion
