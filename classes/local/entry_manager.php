@@ -264,7 +264,8 @@ final class entry_manager
     }
 
     /**
-     * Whether a user may download an entry's evidence: its owner, or staff who can view every logbook.
+     * Whether a user may download an entry's evidence: its owner, staff who can view every logbook,
+     * or approvers, who need the evidence to review the entry.
      *
      * @param entry $entry The entry.
      * @param int $userid The user asking.
@@ -275,7 +276,8 @@ final class entry_manager
         if ((int) $entry->get('userid') === $userid) {
             return has_capability('local/cpdlog:viewown', $context, $userid);
         }
-        return has_capability('local/cpdlog:viewall', $context, $userid);
+        return has_capability('local/cpdlog:viewall', $context, $userid)
+            || has_capability('local/cpdlog:approve', $context, $userid);
     }
 
     /**
@@ -343,7 +345,7 @@ final class entry_manager
 
     /**
      * Submits a draft for staff review, rechecking the rules in case anything changed since it was saved,
-     * and refusing when the category requires evidence and none is attached.
+     * and refusing when the category requires evidence and none is attached. Approvers are notified.
      *
      * @param entry $entry The draft.
      * @param int $userid The member.
@@ -369,6 +371,7 @@ final class entry_manager
         $entry->update();
         entry_submitted::create_from_entry($entry)->trigger();
         $transaction->allow_commit();
+        notifier::entry_submitted($entry);
     }
 
     /**

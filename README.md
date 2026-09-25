@@ -41,8 +41,20 @@ changed by the member. Entries imported from iMIS are shown read-only.
 
 Members can attach up to 5 evidence files (PDF, Word or image) to an entry. Where a category is
 marked _Evidence required_, an entry cannot be submitted until it has at least one file. Evidence
-is private: only the member and staff with `local/cpdlog:viewall` can download it, and files are
-always downloaded rather than opened in the browser.
+is private: only the member, staff with `local/cpdlog:viewall` and approvers can download it, and
+files are always downloaded rather than opened in the browser.
+
+## Approving CPD
+
+Approvers review submitted entries under _Site administration > Plugins > Local plugins > CPD
+logbook > Approval queue_ (`/local/cpdlog/admin/review.php`), oldest submission first. Each entry
+can be approved, or rejected with a reason the member sees; a rejected entry goes back to the
+member to edit and resubmit. Up to 50 entries on a page can be ticked and approved together.
+Approvers cannot review their own entries, or entries in a closed period.
+
+Members are notified when an entry is approved or rejected, and approvers when an entry is
+submitted. Notifications are sent as a popup and by email by default; each person can change this
+in their notification preferences.
 
 ## Privacy and data deletion
 
