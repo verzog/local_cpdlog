@@ -64,13 +64,18 @@ scoping", 24/09/2026). Where this file and the scoping document differ, this fil
     queue, oldest submission first.
     - Rejecting and reversing both require a reason, which the member sees in their logbook and
       in the notification.
-    - Approvers can never review their own entries; another approver must.
-    - Entries in a closed period cannot be reviewed until the period is reopened.
+    - Approvers can never review or reverse their own entries; another approver must.
+    - Entries in a closed period cannot be reviewed or reversed until the period is reopened.
+    - Approved entries are listed on the queue's second tab, newest approval first, where an
+      approver can reverse one. Reversal is final (decision 4): the entry stays in the member's
+      logbook as reversed, keeps its original approval on record, and cannot be edited or
+      approved again.
     - Approvers can tick up to 50 entries on a page and approve them together, after a
       confirmation. Rejection is one entry at a time, because each needs its own reason.
     - Notifications (popup and email by default, adjustable in each person's notification
-      preferences): members hear when an entry is approved or rejected, and every approver
-      except the member hears when an entry is submitted.
+      preferences): members hear when an entry is approved, rejected or reversed, and every
+      approver except the member hears when an entry is submitted.
+    - If two approvers act on the same entry at once, only the first action counts.
 
 ## Schema notes
 
@@ -113,7 +118,7 @@ of the licence overrides in `.phpcs.xml`.
 |---|---|---|
 | 1. Foundation | Skeleton, CI, schema, capabilities, settings, admin pages, cohort conflicts | Done |
 | 2. Capture | Entry form, validation, draft and submit, privacy, evidence upload | Done |
-| 3. Approval | Staff queue, approve / reject / reverse, events, message providers | In progress: reversal next |
+| 3. Approval | Staff queue, approve / reject / reverse, events, message providers | Done |
 | 4. Reporting | Member progress page; Report Builder source for staff | |
 | 5. Privacy and hardening | Full privacy provider, PHPUnit and Behat coverage | |
 | 6. iMIS push | On hold until the iMIS write path is proven in sccadev | |

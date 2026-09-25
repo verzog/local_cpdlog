@@ -1,8 +1,8 @@
 @local @local_cpdlog
-Feature: Approving and rejecting CPD entries
+Feature: Approving, rejecting and reversing CPD entries
   In order to accredit members' CPD
   As an approver
-  I need to approve or reject the entries members submit
+  I need to approve or reject the entries members submit, and reverse approvals made in error
 
   Background:
     Given the following "users" exist:
@@ -24,6 +24,7 @@ Feature: Approving and rejecting CPD entries
       | member1   | 2026   | DERM   | 11/03/2026 | 3     | submitted |                 |                       | moodle |
       | approver1 | 2026   | DERM   | 12/03/2026 | 1     | submitted |                 |                       | moodle |
       | member1   | 2026   | DERM   | 13/03/2026 | 1     | submitted |                 | Imported from iMIS    | imis   |
+      | member1   | 2026   | DERM   | 14/03/2026 | 4     | approved  |                 | Approved earlier      | moodle |
 
   Scenario: An approver approves one entry and the member sees it approved
     Given I log in as "approver1"
@@ -73,3 +74,24 @@ Feature: Approving and rejecting CPD entries
     And I should not see "10/03/2026"
     And I should not see "11/03/2026"
     And I should see "12/03/2026"
+
+  Scenario: An approver reverses an approval with a reason and the member sees it reversed
+    Given I log in as "approver1"
+    And I visit "/local/cpdlog/admin/review.php"
+    And I should not see "14/03/2026"
+    When I click on "Approved entries" "link"
+    Then I should see "Approved earlier" in the "14/03/2026" "table_row"
+    When I click on "Reverse" "link" in the "14/03/2026" "table_row"
+    Then I should see "Reversing is final."
+    When I press "Reverse"
+    Then I should see "Required"
+    When I set the field "Reason for reversal" to "Approved in error: duplicate claim."
+    And I press "Reverse"
+    Then I should see "Approval reversed. The member has been notified."
+    And I should see "No entries have been approved yet."
+    And I log out
+    And I log in as "member1"
+    And I visit "/local/cpdlog/index.php"
+    And I should see "Reversed" in the "14/03/2026" "table_row"
+    And I should see "Reason for reversal: Approved in error: duplicate claim." in the "14/03/2026" "table_row"
+    And "Edit" "link" should not exist in the "14/03/2026" "table_row"

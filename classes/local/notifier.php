@@ -48,13 +48,14 @@ final class notifier
     }
 
     /**
-     * Tells the member the outcome of a review: approved or rejected, with the reason.
+     * Tells the member the outcome of a review: approved, rejected or reversed, with the reason.
      *
      * @param entry $entry The reviewed entry.
      */
     public static function entry_reviewed(entry $entry): void {
         $member = \core_user::get_user($entry->get('userid'), 'id, lang', MUST_EXIST);
-        $extra = ['reason' => (string) $entry->get('rejectionreason')];
+        $reasonfield = $entry->get('status') === entry::STATUS_REVERSED ? 'reversalreason' : 'rejectionreason';
+        $extra = ['reason' => (string) $entry->get($reasonfield)];
         self::send('entryoutcome', $member, 'message:entry' . $entry->get('status'), $entry, $extra);
     }
 
