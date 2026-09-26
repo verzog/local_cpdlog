@@ -11,7 +11,7 @@
 // prior written permission of Skin Cancer College Australasia. The software
 // is provided "as is", without warranty of any kind, express or implied.
 /**
- * A member's CPD logbook: their entries, with submit and delete for drafts.
+ * A member's CPD logbook: their progress against targets, and their entries, with submit and delete for drafts.
  *
  * @package    local_cpdlog
  * @copyright  © Skin Cancer College Australasia
@@ -22,6 +22,7 @@ use local_cpdlog\local\display;
 use local_cpdlog\local\entry_manager;
 use local_cpdlog\persistent\category;
 use local_cpdlog\persistent\entry;
+use local_cpdlog\persistent\period;
 
 require(__DIR__ . '/../../config.php');
 
@@ -32,6 +33,7 @@ require_capability('local/cpdlog:viewown', $context);
 $action = optional_param('action', '', PARAM_ALPHA);
 $id = optional_param('id', 0, PARAM_INT);
 $confirm = optional_param('confirm', 0, PARAM_BOOL);
+$periodid = optional_param('periodid', 0, PARAM_INT);
 $url = new moodle_url('/local/cpdlog/index.php');
 
 $PAGE->set_context($context);
@@ -134,7 +136,30 @@ foreach (entry::get_records_select('userid = :userid', ['userid' => $USER->id], 
     ];
 }
 
+// Progress is shown for the chosen period; by default the current one, or else the latest to have started.
+$periods = period::get_records([], 'startdate', 'DESC');
+$shown = null;
+foreach ($periods as $period) {
+    if ((int) $period->get('id') === $periodid) {
+        $shown = $period;
+    }
+}
+if (!$shown && $periods) {
+    $started = array_filter($periods, fn(period $period) => $period->get('startdate') <= time());
+    $shown = entry_manager::find_period(time()) ?? (reset($started) ?: reset($periods));
+}
+
 echo $OUTPUT->header();
+if ($shown) {
+    $options = [];
+    foreach ($periods as $period) {
+        $options[$period->get('id')] = format_string($period->get('name'));
+    }
+    $select = new single_select($url, 'periodid', $options, $shown->get('id'), null);
+    $select->set_label(get_string('reportingperiod', 'local_cpdlog'));
+    echo $OUTPUT->render($select);
+    echo $OUTPUT->render_from_template('local_cpdlog/progress', display::progress((int) $USER->id, $shown));
+}
 if ($cansubmit) {
     echo $OUTPUT->single_button(new moodle_url('/local/cpdlog/edit.php'), get_string('addentry', 'local_cpdlog'), 'get');
 }

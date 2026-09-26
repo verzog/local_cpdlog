@@ -39,6 +39,10 @@ must fall in an open reporting period, and its hours are limited by the _Maximum
 setting. Entries are saved as drafts and then submitted for review; a submitted entry cannot be
 changed by the member. Entries imported from iMIS are shown read-only.
 
+The logbook opens with the member's progress for the current reporting period: one bar per
+target that applies to them, counting approved hours only, with hours still waiting for review
+shown beside them. Earlier and later periods can be picked from the _Reporting period_ menu.
+
 Members can attach up to 5 evidence files (PDF, Word or image) to an entry. Where a category is
 marked _Evidence required_, an entry cannot be submitted until it has at least one file. Evidence
 is private: only the member, staff with `local/cpdlog:viewall` and approvers can download it, and

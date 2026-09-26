@@ -1,0 +1,72 @@
+{{!
+    Copyright (c) Skin Cancer College Australasia.
+    All rights reserved.
+
+    This file is part of a proprietary plugin developed by Skin Cancer
+    College Australasia for use with Moodle. It is NOT free software and is
+    NOT released under the GNU General Public License.
+
+    Unauthorised copying, distribution, modification, or use of this file,
+    in whole or in part, via any medium, is strictly prohibited without the
+    prior written permission of Skin Cancer College Australasia. The software
+    is provided "as is", without warranty of any kind, express or implied.
+}}
+{{!
+    @template local_cpdlog/progress
+
+    A member's CPD progress against their targets in one reporting period.
+
+    Context variables required for this template:
+    * heading - Heading naming the period.
+    * totals - The period's approved hours, and pending hours if any.
+    * hastargets - Whether any targets apply to the member.
+    * targets - One per target: name, summary, pending (empty when none), percent (0 to 100) and met.
+
+    Example context (json):
+    {
+        "heading": "Progress for 2026",
+        "totals": "12.50 hours approved in this period, and 2.00 hours waiting for review.",
+        "hastargets": true,
+        "targets": [
+            {
+                "name": "Total CPD",
+                "summary": "12.50 of 50.00 hours approved",
+                "pending": "2.00 more hours waiting for review",
+                "percent": 25,
+                "met": false
+            },
+            {
+                "name": "Educational activities",
+                "summary": "12.50 of 10.00 hours approved",
+                "pending": "",
+                "percent": 100,
+                "met": true
+            }
+        ]
+    }
+}}
+<div class="local-cpdlog-progress mb-4">
+    <h3>{{heading}}</h3>
+    <p>{{totals}}</p>
+    {{#hastargets}}
+    <ul class="list-unstyled">
+        {{#targets}}
+        <li class="mb-3">
+            <div class="d-flex justify-content-between">
+                <strong>{{name}}</strong>
+                {{#met}}<span class="badge bg-success">{{#str}} targetmet, local_cpdlog {{/str}}</span>{{/met}}
+            </div>
+            <div class="progress" role="progressbar" aria-label="{{name}}"
+                aria-valuenow="{{percent}}" aria-valuemin="0" aria-valuemax="100">
+                <div class="progress-bar{{#met}} bg-success{{/met}}" style="width: {{percent}}%"></div>
+            </div>
+            <div class="small">{{summary}}</div>
+            {{#pending}}<div class="small text-muted">{{pending}}</div>{{/pending}}
+        </li>
+        {{/targets}}
+    </ul>
+    {{/hastargets}}
+    {{^hastargets}}
+    <p>{{#str}} notargets, local_cpdlog {{/str}}</p>
+    {{/hastargets}}
+</div>

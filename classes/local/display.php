@@ -21,9 +21,10 @@
 namespace local_cpdlog\local;
 
 use local_cpdlog\persistent\entry;
+use local_cpdlog\persistent\period;
 
 /**
- * Shared formatting for CPD entries on the logbook and approval pages.
+ * Shared formatting for CPD entries and progress on the logbook and approval pages.
  */
 final class display
 {
@@ -75,5 +76,41 @@ final class display
             $links[] = \html_writer::link($url, s($file->get_filename()));
         }
         return implode(\html_writer::empty_tag('br'), $links);
+    }
+
+    /**
+     * Returns the template context for a member's progress in a period.
+     *
+     * @param int $userid The member.
+     * @param period $period The period.
+     * @return array Context for the local_cpdlog/progress template.
+     */
+    public static function progress(int $userid, period $period): array {
+        $hours = progress::get_hours_by_category($userid, $period->get('id'));
+        $totals = (object) [
+            'approved' => format_float(array_sum($hours['approved']), 2),
+            'pending' => format_float(array_sum($hours['pending']), 2),
+        ];
+        $totalskey = $hours['pending'] ? 'progresstotalspending' : 'progresstotals';
+
+        $targets = [];
+        foreach (progress::get_progress($userid, $period->get('id')) as $row) {
+            $a = (object) ['approved' => format_float($row->approved, 2), 'required' => format_float($row->required, 2)];
+            $targets[] = [
+                // Mustache escapes the text, so it is formatted without escaping here.
+                'name' => format_string($row->target->get('name'), true, ['escape' => false]),
+                'summary' => get_string('progresstarget', 'local_cpdlog', $a),
+                'pending' => $row->pending > 0 ? get_string('progresspending', 'local_cpdlog', format_float($row->pending, 2)) : '',
+                'percent' => $row->percent,
+                'met' => $row->met,
+            ];
+        }
+
+        return [
+            'heading' => get_string('progressfor', 'local_cpdlog', format_string($period->get('name'), true, ['escape' => false])),
+            'totals' => get_string($totalskey, 'local_cpdlog', $totals),
+            'hastargets' => (bool) $targets,
+            'targets' => $targets,
+        ];
     }
 }
