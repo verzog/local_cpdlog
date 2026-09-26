@@ -82,9 +82,14 @@ scoping", 24/09/2026). Where this file and the scoping document differ, this fil
       entries count like any other.
     - Members see their progress at the top of _My CPD logbook_: one bar per applicable target for
       the current period (or the latest to have started), with a picker for other periods.
-    - Staff report through Report Builder sources (phase 4, part 2), covering members who logged
-      CPD in the period or belong to a cohort with targets. Staff progress reports can be filtered
-      by cohort and by custom user profile field.
+    - Staff report through two Report Builder sources: _CPD entries_ (one row per entry) and _CPD
+      progress_ (one row per member per applicable target). The progress source covers members who
+      logged CPD in the period or belong to a cohort with targets there, and works out the hours in
+      SQL with the same rules as the member's page; a test checks the two agree.
+    - Both sources can be filtered by cohort (a member of any chosen cohort, listed once) and by
+      custom user profile field, as well as by period, category, status and target met.
+    - Installing or upgrading adds a starting report for each source, _CPD entries_ and _CPD
+      progress by member_, shown to the _CPD staff_ audience: users with `local/cpdlog:viewall`.
 
 ## Schema notes
 
@@ -128,7 +133,7 @@ of the licence overrides in `.phpcs.xml`.
 | 1. Foundation | Skeleton, CI, schema, capabilities, settings, admin pages, cohort conflicts | Done |
 | 2. Capture | Entry form, validation, draft and submit, privacy, evidence upload | Done |
 | 3. Approval | Staff queue, approve / reject / reverse, events, message providers | Done |
-| 4. Reporting | Member progress page; Report Builder source for staff | In progress: staff reports next |
+| 4. Reporting | Member progress page; Report Builder source for staff | Done |
 | 5. Privacy and hardening | Full privacy provider, PHPUnit and Behat coverage | |
 | 6. iMIS push | On hold until the iMIS write path is proven in sccadev | |
 | 7. iMIS pull | Read-only import and conflict detection | |

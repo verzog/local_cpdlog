@@ -46,5 +46,11 @@ function xmldb_local_cpdlog_upgrade($oldversion) {
         upgrade_plugin_savepoint(true, 2026092405, 'local', 'cpdlog');
     }
 
+    if ($oldversion < 2026092601) {
+        // Sites installed before the CPD report sources existed get the starting reports now.
+        \local_cpdlog\local\setup::add_default_reports();
+        upgrade_plugin_savepoint(true, 2026092601, 'local', 'cpdlog');
+    }
+
     return true;
 }
