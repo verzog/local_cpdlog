@@ -76,6 +76,15 @@ scoping", 24/09/2026). Where this file and the scoping document differ, this fil
       preferences): members hear when an entry is approved, rejected or reversed, and every
       approver except the member hears when an entry is submitted.
     - If two approvers act on the same entry at once, only the first action counts.
+16. **Progress and reporting** (agreed 26/09/2026).
+    - Only approved hours count towards a target. Submitted hours waiting for review are shown
+      beside them as pending. Drafts, rejected and reversed entries never count; approved iMIS
+      entries count like any other.
+    - Members see their progress at the top of _My CPD logbook_: one bar per applicable target for
+      the current period (or the latest to have started), with a picker for other periods.
+    - Staff report through Report Builder sources (phase 4, part 2), covering members who logged
+      CPD in the period or belong to a cohort with targets. Staff progress reports can be filtered
+      by cohort and by custom user profile field.
 
 ## Schema notes
 
@@ -119,7 +128,7 @@ of the licence overrides in `.phpcs.xml`.
 | 1. Foundation | Skeleton, CI, schema, capabilities, settings, admin pages, cohort conflicts | Done |
 | 2. Capture | Entry form, validation, draft and submit, privacy, evidence upload | Done |
 | 3. Approval | Staff queue, approve / reject / reverse, events, message providers | Done |
-| 4. Reporting | Member progress page; Report Builder source for staff | |
+| 4. Reporting | Member progress page; Report Builder source for staff | In progress: staff reports next |
 | 5. Privacy and hardening | Full privacy provider, PHPUnit and Behat coverage | |
 | 6. iMIS push | On hold until the iMIS write path is proven in sccadev | |
 | 7. iMIS pull | Read-only import and conflict detection | |
