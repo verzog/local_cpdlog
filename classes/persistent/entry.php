@@ -48,6 +48,15 @@ class entry extends \core\persistent
     /** @var string An approved entry reversed by staff; kept for the record. */
     const STATUS_REVERSED = 'reversed';
 
+    /** @var string[] Every entry status, in workflow order. */
+    const STATUSES = [
+        self::STATUS_DRAFT,
+        self::STATUS_SUBMITTED,
+        self::STATUS_APPROVED,
+        self::STATUS_REJECTED,
+        self::STATUS_REVERSED,
+    ];
+
     /** @var string Created in Moodle, which owns it. */
     const SOURCE_MOODLE = 'moodle';
 
@@ -75,13 +84,7 @@ class entry extends \core\persistent
             'descriptionformat' => ['type' => PARAM_INT, 'default' => FORMAT_HTML],
             'status' => [
                 'type' => PARAM_ALPHA,
-                'choices' => [
-                    self::STATUS_DRAFT,
-                    self::STATUS_SUBMITTED,
-                    self::STATUS_APPROVED,
-                    self::STATUS_REJECTED,
-                    self::STATUS_REVERSED,
-                ],
+                'choices' => self::STATUSES,
                 'default' => self::STATUS_DRAFT,
             ],
             'source' => [

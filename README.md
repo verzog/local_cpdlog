@@ -63,6 +63,21 @@ Members are notified when an entry is approved, rejected or reversed, and approv
 is submitted. Notifications are sent as a popup and by email by default; each person can change this
 in their notification preferences.
 
+## Staff reports
+
+Two Report Builder sources are provided under _Site administration > Reports > Report builder >
+Custom reports_:
+
+- **CPD entries**: one row per entry, with the member, date, category, course, hours and status.
+- **CPD progress**: one row per member per target that applies to them, with the required,
+  approved and pending hours, whether the target is met and the percentage reached. Members are
+  included when they logged CPD in the period or belong to a cohort with targets in it.
+
+Both can be filtered by cohort, by any custom user profile field, and by period, category, status
+or whether a target is met, and exported like any custom report. The plugin adds two starting
+reports, _CPD entries_ and _CPD progress by member_, visible to the _CPD staff_ audience (users
+with `local/cpdlog:viewall`); staff with Report Builder editing rights can copy or change them.
+
 ## Privacy and data deletion
 
 CPD records are retained compliance records and are never deleted automatically. The privacy

@@ -19,11 +19,12 @@
  */
 
 /**
- * Adds the starting categories that staff can rename, disable or add to.
+ * Adds the starting categories that staff can rename, disable or add to, and the starting reports.
  *
  * @return bool
  */
 function xmldb_local_cpdlog_install() {
     \local_cpdlog\local\setup::add_default_categories();
+    \local_cpdlog\local\setup::add_default_reports();
     return true;
 }
