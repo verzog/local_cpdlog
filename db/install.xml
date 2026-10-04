@@ -151,6 +151,7 @@
         <FIELD NAME="filesdeleted" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
         <FIELD NAME="timerequested" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
         <FIELD NAME="timecompleted" TYPE="int" LENGTH="10" NOTNULL="false" SEQUENCE="false" COMMENT="When the deletion ran or was cancelled."/>
+        <FIELD NAME="imageblogawardid" TYPE="int" LENGTH="10" NOTNULL="false" SEQUENCE="false" COMMENT="The member's highest image blog award id when the deletion ran; awards up to it are not copied again."/>
       </FIELDS>
       <KEYS>
         <KEY NAME="primary" TYPE="primary" FIELDS="id"/>

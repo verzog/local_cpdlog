@@ -116,12 +116,17 @@ scoping", 24/09/2026). Where this file and the scoping document differ, this fil
     - Each award becomes an **approved** entry with source `imageblog` and reference
       `postid:userid:reason`, so re-running updates rather than duplicates. No course is recorded;
       the course name reads _Image blog_. Entries are read-only.
-    - The category is a setting (default Educational activities, EA) applying to new entries.
+    - The category is a setting (default Educational activities, EA) applying to new entries. Only
+      enabled categories are offered or used; a disabled choice falls back to EA.
     - The first run imports **past awards**. Awards outside every period wait for a period.
     - The image blog owns the hours: changed hours are followed, a withdrawn award reverses its
-      entry, and a returning award approves it again.
-    - Awards made before a member's CPD data was deleted, or while a deletion is queued, are not
-      copied, so the deletion tool's work is not undone.
+      entry, and a returning award approves it again with its new date and period (or waits for a
+      period, like a new award).
+    - Awards that existed when a member's CPD data was deleted are never copied back. The deletion
+      records the member's highest award id, because the image blog re-stamps an award's time
+      whenever it refreshes it (for example when the outcome is read again). Nothing is copied while
+      a deletion is queued, and each member's awards are copied under the same lock that queuing a
+      deletion takes.
 
 ## Schema notes
 

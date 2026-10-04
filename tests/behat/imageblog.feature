@@ -5,7 +5,8 @@ Feature: CPD hours from the image blog
   I need the CPD hours I earn on image blog clinical cases to appear in my logbook
 
   Background:
-    Given the following "users" exist:
+    Given the image blog plugin is installed
+    And the following "users" exist:
       | username | firstname | lastname | email               |
       | member1  | Member    | One      | member1@example.com |
     And the following "local_cpdlog > periods" exist:

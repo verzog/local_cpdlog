@@ -39,9 +39,9 @@ use local_cpdlog\persistent\period;
  * Entries have no course; their course name reads "Image blog".
  *
  * An award is skipped when no reporting period contains its date (it is picked up once a period is
- * added), and when the member's CPD data was deleted after it was awarded or a deletion is queued,
- * so the deletion tool's work is not undone. Nothing runs unless the image blog is installed and
- * local_cpdlog/imageblogenabled is on.
+ * added), while a deletion of the member's CPD data is queued, and when it already existed when a
+ * deletion ran, so the deletion tool's work is not undone. Nothing runs unless the image blog is
+ * installed and local_cpdlog/imageblogenabled is on.
  */
 final class imageblog_sync
 {
@@ -84,7 +84,7 @@ final class imageblog_sync
      */
     public static function get_category_choices(): array {
         $choices = [];
-        foreach (category::get_records([], 'sortorder') as $category) {
+        foreach (category::get_records(['enabled' => 1], 'sortorder') as $category) {
             $choices[$category->get('shortname')] = format_string($category->get('name'));
         }
         return $choices;
@@ -93,19 +93,20 @@ final class imageblog_sync
     /**
      * Returns the category new image blog entries are filed under.
      *
-     * Falls back to Educational activities (EA), then to the first category, if the setting names a
-     * category that no longer exists.
+     * Only enabled categories are used, as for entries members log. Falls back to Educational
+     * activities (EA), then to the first enabled category, if the setting names a category that is
+     * disabled or no longer exists.
      *
      * @return category
      */
     public static function get_category(): category {
         $shortname = (string) get_config('local_cpdlog', 'imageblogcategory');
         foreach ([$shortname, 'EA'] as $candidate) {
-            if ($candidate !== '' && ($category = category::get_record(['shortname' => $candidate]))) {
+            if ($candidate !== '' && ($category = category::get_record(['shortname' => $candidate, 'enabled' => 1]))) {
                 return $category;
             }
         }
-        $categories = category::get_records([], 'sortorder', 'ASC', 0, 1);
+        $categories = category::get_records(['enabled' => 1], 'sortorder', 'ASC', 0, 1);
         if (!$categories) {
             throw new \moodle_exception('invalidrecord', 'error', '', category::TABLE);
         }
@@ -141,6 +142,10 @@ final class imageblog_sync
     /**
      * Creates entries for new awards, and updates entries whose award changed or came back.
      *
+     * Awards are handled member by member under the same lock that queuing a deletion takes, and each
+     * member's deletion register is read inside that lock. A deletion queued during a run therefore
+     * either waits for the member's writes (and then removes them) or is seen before any is made.
+     *
      * @param \stdClass $result The counts to add to.
      */
     private static function copy_awards(\stdClass $result): void {
@@ -154,32 +159,77 @@ final class imageblog_sync
              LEFT JOIN {" . entry::TABLE . "} e ON e.source = :source AND e.externalref = {$ref}
                  WHERE a.hours > 0
                    AND (e.id IS NULL OR e.hours <> a.hours OR e.status <> :approved)
-                   AND NOT EXISTS (
-                       SELECT 1
-                         FROM {" . data_deleter::TABLE . "} d
-                        WHERE d.userid = a.userid
-                          AND (d.status = :queued OR (d.status = :done AND d.timecompleted >= a.timeawarded))
-                   )
-              ORDER BY a.id";
-        $params = [
-            'source' => entry::SOURCE_IMAGEBLOG,
-            'approved' => entry::STATUS_APPROVED,
-            'queued' => data_deleter::STATUS_QUEUED,
-            'done' => data_deleter::STATUS_DONE,
-        ];
+              ORDER BY a.userid, a.id";
+        $params = ['source' => entry::SOURCE_IMAGEBLOG, 'approved' => entry::STATUS_APPROVED];
         $categoryid = (int) self::get_category()->get('id');
+        $lockfactory = \core\lock\lock_config::get_lock_factory(data_deleter::LOCK_TYPE);
+        $userid = null;
+        $lock = false;
+        $cutoff = null;
         $awards = $DB->get_recordset_sql($sql, $params);
-        foreach ($awards as $award) {
-            if ($award->entryid) {
-                self::update_entry(new entry($award->entryid), $award);
-                $result->updated++;
-            } else if (self::create_entry($award, $categoryid)) {
-                $result->created++;
-            } else {
-                $result->skipped++;
+        try {
+            foreach ($awards as $award) {
+                if ((int) $award->userid !== $userid) {
+                    if ($lock) {
+                        $lock->release();
+                    }
+                    $userid = (int) $award->userid;
+                    $lock = $lockfactory->get_lock(data_deleter::lock_key($userid), 5);
+                    $cutoff = $lock ? self::deletion_cutoff($userid) : null;
+                }
+                // Without the lock, or with a deletion queued, the member's awards wait for the next run.
+                if (!$lock || $cutoff === false || ($cutoff !== null && self::is_before($award, $cutoff))) {
+                    continue;
+                }
+                $outcome = $award->entryid
+                    ? self::update_entry(new entry($award->entryid), $award)
+                    : self::create_entry($award, $categoryid);
+                $result->$outcome++;
+            }
+        } finally {
+            $awards->close();
+            if ($lock) {
+                $lock->release();
             }
         }
-        $awards->close();
+    }
+
+    /**
+     * Returns how far a member's completed CPD data deletions reach into the image blog's awards.
+     *
+     * @param int $userid The member.
+     * @return \stdClass|false|null False while a deletion is queued; null if none has run; otherwise
+     *                              awardid (the highest award id when the latest deletion ran, or null
+     *                              for deletions made before that was recorded) and timecompleted.
+     */
+    private static function deletion_cutoff(int $userid) {
+        global $DB;
+        if ($DB->record_exists(data_deleter::TABLE, ['userid' => $userid, 'status' => data_deleter::STATUS_QUEUED])) {
+            return false;
+        }
+        $sql = 'SELECT MAX(imageblogawardid) AS awardid, MAX(timecompleted) AS timecompleted
+                  FROM {' . data_deleter::TABLE . '}
+                 WHERE userid = :userid AND status = :done';
+        $cutoff = $DB->get_record_sql($sql, ['userid' => $userid, 'done' => data_deleter::STATUS_DONE]);
+        return $cutoff->timecompleted === null ? null : $cutoff;
+    }
+
+    /**
+     * Whether an award existed before the member's CPD data was deleted, so must not be copied back.
+     *
+     * The image blog re-stamps an award's time whenever it refreshes it (for example each time the
+     * member reads the outcome again), so the award id recorded by the deletion decides. Deletions
+     * recorded before that id was kept fall back to comparing times.
+     *
+     * @param \stdClass $award The award.
+     * @param \stdClass $cutoff From deletion_cutoff().
+     * @return bool
+     */
+    private static function is_before(\stdClass $award, \stdClass $cutoff): bool {
+        if ($cutoff->awardid !== null && (int) $award->id <= (int) $cutoff->awardid) {
+            return true;
+        }
+        return (int) $award->timeawarded <= (int) $cutoff->timecompleted;
     }
 
     /**
@@ -187,12 +237,12 @@ final class imageblog_sync
      *
      * @param \stdClass $award The award, with the post title.
      * @param int $categoryid The category to file it under.
-     * @return bool Whether an entry was created.
+     * @return string The count to add to: created, or skipped when no period contains its date.
      */
-    private static function create_entry(\stdClass $award, int $categoryid): bool {
+    private static function create_entry(\stdClass $award, int $categoryid): string {
         $period = entry_manager::find_period((int) $award->timeawarded);
         if (!$period) {
-            return false;
+            return 'skipped';
         }
         $entry = new entry(0, (object) [
             'userid' => (int) $award->userid,
@@ -211,25 +261,37 @@ final class imageblog_sync
             'timereviewed' => (int) $award->timeawarded,
         ]);
         $entry->create();
-        return true;
+        return 'created';
     }
 
     /**
      * Brings an entry back in line with its award: same hours, and approved again if it was reversed.
      *
+     * An approved entry keeps its date when only the hours change, because the image blog re-stamps an
+     * award whenever it refreshes it. An award that comes back after being withdrawn is new, so the
+     * entry takes its date and period, and waits like a new award if no period contains that date.
+     *
      * @param entry $entry The entry.
      * @param \stdClass $award The award.
+     * @return string The count to add to: updated, or skipped when no period contains a returning award.
      */
-    private static function update_entry(entry $entry, \stdClass $award): void {
-        $entry->set('hours', round((float) $award->hours, 2));
+    private static function update_entry(entry $entry, \stdClass $award): string {
         if ($entry->get('status') !== entry::STATUS_APPROVED) {
+            $period = entry_manager::find_period((int) $award->timeawarded);
+            if (!$period) {
+                return 'skipped';
+            }
+            $entry->set('periodid', $period->get('id'));
+            $entry->set('activitydate', (int) $award->timeawarded);
             $entry->set('status', entry::STATUS_APPROVED);
             $entry->set('timereviewed', (int) $award->timeawarded);
             $entry->set('reversedby', null);
             $entry->set('timereversed', null);
             $entry->set('reversalreason', null);
         }
+        $entry->set('hours', round((float) $award->hours, 2));
         $entry->update();
+        return 'updated';
     }
 
     /**

@@ -15,18 +15,33 @@
 // along with Moodle.  If not, see <https://www.gnu.org/licenses/>.
 
 /**
- * Version information for the CPD logbook plugin.
+ * Behat steps for the CPD logbook.
  *
  * @package    local_cpdlog
  * @copyright  2026 Vernon Spain
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
-defined('MOODLE_INTERNAL') || die();
+// NOTE: no MOODLE_INTERNAL test here, this file may be required by behat before including /config.php.
 
-$plugin->component = 'local_cpdlog';
-$plugin->version = 2026100403;
-$plugin->requires = 2025041400; // Moodle 5.0.
-$plugin->supported = [500, 503];
-$plugin->maturity = MATURITY_ALPHA;
-$plugin->release = '0.1.0';
+require_once(__DIR__ . '/../../../../lib/behat/behat_base.php');
+
+use Moodle\BehatExtension\Exception\SkippedException;
+
+/**
+ * Behat steps for the CPD logbook.
+ */
+class behat_local_cpdlog extends behat_base
+{
+    /**
+     * Skips the scenario unless the optional image blog plugin (local_imageblog) is installed.
+     *
+     * @Given /^the image blog plugin is installed$/
+     * @throws SkippedException
+     */
+    public function the_image_blog_plugin_is_installed(): void {
+        if (!\local_cpdlog\local\imageblog_sync::is_installed()) {
+            throw new SkippedException('local_imageblog is not installed.');
+        }
+    }
+}

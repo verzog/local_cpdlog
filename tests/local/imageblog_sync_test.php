@@ -172,6 +172,49 @@ final class imageblog_sync_test extends \advanced_testcase
     }
 
     /**
+     * A withdrawn award that returns on a later date takes that date and its period, or waits for one.
+     */
+    public function test_returning_award_takes_new_date(): void {
+        global $DB;
+        $awardid = $this->award('bestanswer', 0.75);
+        imageblog_sync::sync();
+        $DB->delete_records(imageblog_sync::AWARD_TABLE, ['id' => $awardid]);
+        imageblog_sync::sync();
+
+        $later = (new \DateTime('2027-02-01 10:00', new \DateTimeZone('Australia/Sydney')))->getTimestamp();
+        $this->award('bestanswer', 0.75, $later);
+        $this->assertEquals((object) ['created' => 0, 'updated' => 0, 'reversed' => 0, 'skipped' => 1], imageblog_sync::sync());
+        $this->assertSame(entry::STATUS_REVERSED, $this->entry_for('bestanswer')->get('status'));
+
+        $period = $this->getDataGenerator()->get_plugin_generator('local_cpdlog')
+            ->create_period(['name' => '2027', 'firstday' => '01/01/2027', 'lastday' => '31/12/2027']);
+        $this->assertSame(1, imageblog_sync::sync()->updated);
+        $entry = $this->entry_for('bestanswer');
+        $this->assertSame(entry::STATUS_APPROVED, $entry->get('status'));
+        $this->assertEquals($period->get('id'), $entry->get('periodid'));
+        $this->assertEquals($later, $entry->get('activitydate'));
+    }
+
+    /**
+     * A member whose deletion lock is held elsewhere is left for the next run.
+     */
+    public function test_waits_for_deletion_lock(): void {
+        global $CFG;
+        // Database locks are re-entrant within one connection, so file locks stand in for another process.
+        $CFG->lock_factory = '\\core\\lock\\file_lock_factory';
+        $this->award('participation', 1);
+        $lock = \core\lock\lock_config::get_lock_factory(data_deleter::LOCK_TYPE)
+            ->get_lock(data_deleter::lock_key((int) $this->member->id), 0);
+        $this->assertNotFalse($lock);
+        try {
+            $this->assertSame(0, imageblog_sync::sync()->created);
+        } finally {
+            $lock->release();
+        }
+        $this->assertSame(1, imageblog_sync::sync()->created);
+    }
+
+    /**
      * An award outside every period waits until a period covers it, then is copied.
      */
     public function test_award_outside_periods_waits(): void {
@@ -196,6 +239,14 @@ final class imageblog_sync_test extends \advanced_testcase
         set_config('imageblogcategory', 'GONE', 'local_cpdlog');
         $this->assertSame('EA', imageblog_sync::get_category()->get('shortname'));
         $this->assertArrayHasKey('EA', imageblog_sync::get_category_choices());
+
+        // A disabled category is not used for new entries or offered in the setting, as for members.
+        $rp = category::get_record(['shortname' => 'RP']);
+        $rp->set('enabled', 0);
+        $rp->update();
+        set_config('imageblogcategory', 'RP', 'local_cpdlog');
+        $this->assertSame('EA', imageblog_sync::get_category()->get('shortname'));
+        $this->assertArrayNotHasKey('RP', imageblog_sync::get_category_choices());
     }
 
     /**
@@ -225,6 +276,7 @@ final class imageblog_sync_test extends \advanced_testcase
      * Awards made before a member's CPD data was deleted are not copied back; later awards are.
      */
     public function test_respects_data_deletion(): void {
+        global $DB;
         // Deletion works on real timestamps, so this test needs a period covering now.
         if (!entry_manager::find_period(time())) {
             $this->getDataGenerator()->get_plugin_generator('local_cpdlog')->create_period([
@@ -233,7 +285,7 @@ final class imageblog_sync_test extends \advanced_testcase
                 'lastday' => userdate(time() + 3 * DAYSECS, '%d/%m/%Y'),
             ]);
         }
-        $this->award('participation', 1, time() - HOURSECS);
+        $participation = $this->award('participation', 1, time() - HOURSECS);
         imageblog_sync::sync();
         $this->assertSame(1, entry::count_records(['userid' => $this->member->id]));
 
@@ -244,6 +296,15 @@ final class imageblog_sync_test extends \advanced_testcase
 
         $this->runAdhocTasks(\local_cpdlog\task\delete_member_data::class);
         $this->assertSame(0, entry::count_records(['userid' => $this->member->id]));
+        $this->assertSame(0, imageblog_sync::sync()->created);
+        $this->assertSame(0, entry::count_records(['userid' => $this->member->id]));
+
+        // The image blog re-stamps an award it refreshes, such as reading the outcome again; it stays deleted.
+        $DB->update_record(imageblog_sync::AWARD_TABLE, (object) [
+            'id' => $participation,
+            'hours' => 2,
+            'timeawarded' => time() + 60,
+        ]);
         $this->assertSame(0, imageblog_sync::sync()->created);
         $this->assertSame(0, entry::count_records(['userid' => $this->member->id]));
 

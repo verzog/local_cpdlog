@@ -235,13 +235,14 @@ hours from the image blog_:
   course (the course column reads _Image blog_), its description names the case and the reason,
   and it is read-only.
 - **Category:** set under _Settings > Category for image blog CPD_ (default Educational
-  activities). Changing it affects entries copied from then on.
+  activities). Changing it affects entries copied from then on. Only enabled categories are used;
+  if the chosen one is disabled, entries go to Educational activities.
 - **Past awards:** the first run copies every award made before the logbook was connected.
 - **Dates:** an entry is dated when the hours were awarded. An award dated outside every
   reporting period is copied once a period covering its date is added.
 - **Changes:** the image blog stays in charge. If it changes an award's hours, the entry follows;
   if it withdraws an award, the entry is reversed and stops counting; if the award comes back, so
-  does the entry.
+  does the entry, dated when it came back.
 - **Switching off:** untick _Copy CPD hours from the image blog_. Entries already copied stay.
 
 ## Privacy and data deletion
@@ -270,8 +271,8 @@ CPD data with the deletion tool:
 
 Each deletion is listed on the same page and logged as a _Member CPD data deleted_ event. Switching
 the setting off again stops new deletions and cancels any that are queued; switching it back on
-does not restart them. Image blog hours awarded before the deletion are not copied back; hours the
-member earns afterwards are.
+does not restart them. Image blog hours the member had when the deletion ran are not copied back;
+hours they earn afterwards are.
 
 ## Development and testing
 
