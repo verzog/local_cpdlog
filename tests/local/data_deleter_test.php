@@ -118,7 +118,9 @@ final class data_deleter_test extends \advanced_testcase
         set_config('enabledeletion', 1, 'local_cpdlog');
         $id = data_deleter::queue((int) $this->member->id, (int) $this->admin->id);
         $this->assertEquals($id, data_deleter::get_queued((int) $this->member->id)->id);
-        $this->assertCount(1, \core\task\manager::get_adhoc_tasks(delete_member_data::class));
+        $tasks = \core\task\manager::get_adhoc_tasks(delete_member_data::class);
+        $this->assertCount(1, $tasks);
+        $this->assertEquals($id, reset($tasks)->get_custom_data()->deletionid);
 
         $this->expectException(\moodle_exception::class);
         data_deleter::queue((int) $this->member->id, (int) $this->admin->id);
@@ -239,5 +241,45 @@ final class data_deleter_test extends \advanced_testcase
         $this->assertSame(data_deleter::STATUS_CANCELLED, $DB->get_field(data_deleter::TABLE, 'status', ['id' => $id]));
         $this->assertSame(2, entry::count_records(['userid' => $this->member->id]));
         $this->assertSame(2, $this->count_files((int) $this->member->id));
+    }
+
+    /**
+     * Switching the tool off in the settings cancels queued deletions for good, even if it is switched on again.
+     */
+    public function test_setting_switched_off_cancels(): void {
+        global $CFG, $DB;
+        require_once($CFG->libdir . '/adminlib.php');
+        $this->setAdminUser();
+        set_config('enabledeletion', 1, 'local_cpdlog');
+        $id = data_deleter::queue((int) $this->member->id, (int) $this->admin->id);
+
+        admin_write_settings((object) ['s_local_cpdlog_enabledeletion' => 0]);
+        $this->assertSame(data_deleter::STATUS_CANCELLED, $DB->get_field(data_deleter::TABLE, 'status', ['id' => $id]));
+        $this->assertNull(data_deleter::get_queued((int) $this->member->id));
+
+        admin_write_settings((object) ['s_local_cpdlog_enabledeletion' => 1]);
+        $this->runAdhocTasks(delete_member_data::class);
+
+        $this->assertSame(data_deleter::STATUS_CANCELLED, $DB->get_field(data_deleter::TABLE, 'status', ['id' => $id]));
+        $this->assertSame(2, entry::count_records(['userid' => $this->member->id]));
+        $this->assertSame(2, $this->count_files((int) $this->member->id));
+    }
+
+    /**
+     * Cancelling touches only queued deletions and reports how many it cancelled.
+     */
+    public function test_cancel_queued(): void {
+        global $DB;
+        set_config('enabledeletion', 1, 'local_cpdlog');
+        $done = data_deleter::queue((int) $this->other->id, (int) $this->admin->id);
+        $this->runAdhocTasks(delete_member_data::class);
+        $queued = data_deleter::queue((int) $this->member->id, (int) $this->admin->id);
+
+        $this->assertSame(1, data_deleter::cancel_queued());
+
+        $this->assertSame(data_deleter::STATUS_DONE, $DB->get_field(data_deleter::TABLE, 'status', ['id' => $done]));
+        $this->assertSame(data_deleter::STATUS_CANCELLED, $DB->get_field(data_deleter::TABLE, 'status', ['id' => $queued]));
+        $this->assertNotEmpty($DB->get_field(data_deleter::TABLE, 'timecompleted', ['id' => $queued]));
+        $this->assertSame(0, data_deleter::cancel_queued());
     }
 }

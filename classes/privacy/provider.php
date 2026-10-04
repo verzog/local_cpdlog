@@ -138,8 +138,9 @@ class provider implements
         foreach (self::ENTRY_USER_FIELDS as $field) {
             $userlist->add_from_sql($field, "SELECT {$field} FROM {local_cpdlog_entry} WHERE {$field} > 0", []);
         }
+        // A chooser is 0 once that staff member's own CPD data has been deleted.
         foreach (['userid', 'chosenby'] as $field) {
-            $userlist->add_from_sql($field, "SELECT {$field} FROM {local_cpdlog_cohortchoice}", []);
+            $userlist->add_from_sql($field, "SELECT {$field} FROM {local_cpdlog_cohortchoice} WHERE {$field} > 0", []);
         }
         foreach (['userid', 'requestedby'] as $field) {
             $userlist->add_from_sql($field, "SELECT {$field} FROM {local_cpdlog_deletion}", []);

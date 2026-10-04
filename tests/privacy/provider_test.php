@@ -200,6 +200,29 @@ final class provider_test extends \core_privacy\tests\provider_testcase
     }
 
     /**
+     * A cohort choice whose chooser was cleared by a staff data deletion does not list user 0.
+     */
+    public function test_get_users_in_context_skips_cleared_chooser(): void {
+        global $DB;
+        $this->resetAfterTest();
+        $generator = $this->getDataGenerator()->get_plugin_generator('local_cpdlog');
+        $member = $this->getDataGenerator()->create_user();
+        $period = $generator->create_period(['name' => '2026', 'firstday' => '01/01/2026', 'lastday' => '31/12/2026']);
+        $DB->insert_record('local_cpdlog_cohortchoice', (object) [
+            'userid' => $member->id,
+            'periodid' => $period->get('id'),
+            'cohortid' => null,
+            'chosenby' => 0,
+            'timecreated' => time(),
+            'timemodified' => time(),
+        ]);
+
+        $userlist = new userlist(\context_system::instance(), 'local_cpdlog');
+        provider::get_users_in_context($userlist);
+        $this->assertEquals([$member->id], $userlist->get_userids());
+    }
+
+    /**
      * Deletion requests leave CPD records in place: they are retained and deleted manually by staff.
      */
     public function test_delete_retains_records(): void {

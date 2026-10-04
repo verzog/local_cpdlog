@@ -32,12 +32,15 @@ if ($hassiteconfig) {
             '40',
             PARAM_FLOAT
         ));
-        $settings->add(new admin_setting_configcheckbox(
+        $enabledeletion = new admin_setting_configcheckbox(
             'local_cpdlog/enabledeletion',
             new lang_string('enabledeletion', 'local_cpdlog'),
             new lang_string('enabledeletion_desc', 'local_cpdlog'),
             0
-        ));
+        );
+        // Switching deletion off cancels queued deletions at once.
+        $enabledeletion->set_updatedcallback([\local_cpdlog\local\data_deleter::class, 'setting_updated']);
+        $settings->add($enabledeletion);
     }
     $ADMIN->add('local_cpdlog', $settings);
 }

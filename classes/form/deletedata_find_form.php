@@ -61,6 +61,10 @@ class deletedata_find_form extends \moodleform
     /**
      * Returns the one active account with this username or email address.
      *
+     * Both the username and the email address are checked. If they lead to different accounts, or
+     * several accounts share the email address, no account is returned, so an identifier that is one
+     * person's username and another person's email address can never pick the wrong member.
+     *
      * @param string $member A username or email address.
      * @return \stdClass|null
      */
@@ -69,16 +73,17 @@ class deletedata_find_form extends \moodleform
         if ($member === '') {
             return null;
         }
-        $user = $DB->get_record('user', [
+        $select = 'deleted = 0 AND ((username = :username AND mnethostid = :mnethostid) OR LOWER(email) = LOWER(:email))';
+        $params = [
             'username' => \core_text::strtolower($member),
             'mnethostid' => $CFG->mnet_localhost_id,
-            'deleted' => 0,
-        ]);
-        if (!$user) {
-            $select = 'LOWER(email) = LOWER(:email) AND deleted = 0';
-            $users = $DB->get_records_select('user', $select, ['email' => $member], '', '*', 0, 2);
-            $user = count($users) === 1 ? reset($users) : false;
+            'email' => $member,
+        ];
+        $users = $DB->get_records_select('user', $select, $params, '', '*', 0, 2);
+        if (count($users) !== 1) {
+            return null;
         }
-        return $user && !isguestuser($user) ? $user : null;
+        $user = reset($users);
+        return isguestuser($user) ? null : $user;
     }
 }

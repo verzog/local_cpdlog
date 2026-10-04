@@ -33,7 +33,8 @@ use local_cpdlog\persistent\target;
  * member, which an adhoc task carries out. The deletion removes the member's entries in every status,
  * their evidence files and the cohort choices made for them. Where the member acted as staff, their
  * name is cleared from other members' records but the records themselves are kept. Each deletion is
- * kept in a register, and the site setting local_cpdlog/enabledeletion switches the whole tool off.
+ * kept in a register, and the site setting local_cpdlog/enabledeletion switches the whole tool off:
+ * switching it off cancels queued deletions, and a deletion whose task runs while it is off is cancelled.
  *
  * Callers must still check login, local/cpdlog:deletedata and the session key.
  */
@@ -125,21 +126,57 @@ final class data_deleter
         if (!$DB->record_exists('user', ['id' => $userid, 'deleted' => 0])) {
             throw new \moodle_exception('invaliduser', 'error');
         }
-        if (self::get_queued($userid)) {
+        // One deletion per member at a time: the check and the insert run under a lock, and the register
+        // row and its task are written together, so neither can exist without the other.
+        $lock = \core\lock\lock_config::get_lock_factory('local_cpdlog_deletion')->get_lock('user' . $userid, 5);
+        if (!$lock) {
             throw new \moodle_exception('error:deletionqueued', 'local_cpdlog');
         }
-
-        $id = $DB->insert_record(self::TABLE, (object) [
-            'userid' => $userid,
-            'requestedby' => $requestedby,
-            'status' => self::STATUS_QUEUED,
-            'timerequested' => time(),
-        ]);
-        $task = new \local_cpdlog\task\delete_member_data();
-        $task->set_custom_data(['deletionid' => $id]);
-        $task->set_userid($requestedby);
-        \core\task\manager::queue_adhoc_task($task);
+        try {
+            if (self::get_queued($userid)) {
+                throw new \moodle_exception('error:deletionqueued', 'local_cpdlog');
+            }
+            $transaction = $DB->start_delegated_transaction();
+            $id = $DB->insert_record(self::TABLE, (object) [
+                'userid' => $userid,
+                'requestedby' => $requestedby,
+                'status' => self::STATUS_QUEUED,
+                'timerequested' => time(),
+            ]);
+            $task = new \local_cpdlog\task\delete_member_data();
+            $task->set_custom_data(['deletionid' => $id]);
+            $task->set_userid($requestedby);
+            \core\task\manager::queue_adhoc_task($task);
+            $transaction->allow_commit();
+        } finally {
+            $lock->release();
+        }
         return (int) $id;
+    }
+
+    /**
+     * Cancels every queued deletion. Called when deletions are switched off, so switching them back on
+     * before the tasks run does not let the cancelled deletions go ahead.
+     *
+     * @return int How many deletions were cancelled.
+     */
+    public static function cancel_queued(): int {
+        global $DB;
+        $count = $DB->count_records(self::TABLE, ['status' => self::STATUS_QUEUED]);
+        $sql = 'UPDATE {' . self::TABLE . '} SET status = :cancelled, timecompleted = :now WHERE status = :queued';
+        $DB->execute($sql, ['cancelled' => self::STATUS_CANCELLED, 'now' => time(), 'queued' => self::STATUS_QUEUED]);
+        return $count;
+    }
+
+    /**
+     * Cancels queued deletions when the tool is switched off in the site settings.
+     *
+     * Without this, switching the tool off and on again before the queued tasks ran would let them go ahead.
+     */
+    public static function setting_updated(): void {
+        if (!self::is_enabled()) {
+            self::cancel_queued();
+        }
     }
 
     /**
