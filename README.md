@@ -1,7 +1,6 @@
 # CPD logbook (local_cpdlog)
 
-A continuing professional development (CPD) logbook for Skin Cancer College Australasia (SCCA)
-members, inside Moodle. Members log CPD hours by category against courses they are enrolled in,
+A continuing professional development (CPD) logbook for professional members, inside Moodle. Members log CPD hours by category against courses they are enrolled in,
 attach evidence, and submit entries for staff approval. Members see their own progress against
 configurable targets; staff report across all members. CPD records held in iMIS are replicated
 one way, by row origin, rather than bidirectionally synced.
