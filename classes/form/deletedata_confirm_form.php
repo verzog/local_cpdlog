@@ -13,6 +13,8 @@
 /**
  * Form for staff to confirm deleting a member's CPD data by typing the member's username.
  *
+ * An account already deleted in Moodle has a scrambled username, so its user ID is typed instead.
+ *
  * @package    local_cpdlog
  * @copyright  © Skin Cancer College Australasia
  * @license    Proprietary — Skin Cancer College Australasia, all rights reserved
@@ -39,19 +41,17 @@ class deletedata_confirm_form extends \moodleform
         $user = $this->_customdata['user'];
         $mform->addElement('hidden', 'userid', $user->id);
         $mform->setType('userid', PARAM_INT);
-        $mform->addElement(
-            'text',
-            'confirmusername',
-            get_string('deletedata:confirm', 'local_cpdlog', s($user->username)),
-            ['size' => 40, 'autocomplete' => 'off']
-        );
+        $label = $user->deleted
+            ? get_string('deletedata:confirmid', 'local_cpdlog', $user->id)
+            : get_string('deletedata:confirm', 'local_cpdlog', s($user->username));
+        $mform->addElement('text', 'confirmusername', $label, ['size' => 40, 'autocomplete' => 'off']);
         $mform->setType('confirmusername', PARAM_RAW_TRIMMED);
         $mform->addRule('confirmusername', get_string('required'), 'required', null, 'client');
         $this->add_action_buttons(true, get_string('deletedata:submit', 'local_cpdlog'));
     }
 
     /**
-     * Requires the member's username, typed exactly.
+     * Requires the member's username, or the user ID of a deleted account, typed exactly.
      *
      * @param array $data The submitted data.
      * @param array $files The submitted files.
@@ -59,8 +59,11 @@ class deletedata_confirm_form extends \moodleform
      */
     public function validation($data, $files): array {
         $errors = parent::validation($data, $files);
-        if (trim($data['confirmusername'] ?? '') !== $this->_customdata['user']->username) {
-            $errors['confirmusername'] = get_string('error:deletionconfirm', 'local_cpdlog');
+        $user = $this->_customdata['user'];
+        $expected = $user->deleted ? (string) $user->id : $user->username;
+        if (trim($data['confirmusername'] ?? '') !== $expected) {
+            $error = $user->deleted ? 'error:deletionconfirmid' : 'error:deletionconfirm';
+            $errors['confirmusername'] = get_string($error, 'local_cpdlog');
         }
         return $errors;
     }

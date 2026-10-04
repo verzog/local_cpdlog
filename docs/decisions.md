@@ -94,6 +94,10 @@ scoping", 24/09/2026). Where this file and the scoping document differ, this fil
     - Staff with `local/cpdlog:deletedata` (RISK_PERSONAL and RISK_DATALOSS, no default roles) delete
       one member at a time, found by exact username or email address. The page shows what would go,
       and the member's username must be typed to confirm.
+    - Members whose Moodle accounts are already deleted can be found too (agreed 04/10/2026), by
+      original username, original email address or user ID, matched against what Moodle keeps
+      after scrambling the account. Their user ID is typed to confirm.
+    - An identifier must match exactly one account, active or deleted, or nothing is found.
     - A deletion removes everything about the member: entries in every status, evidence files and
       the cohort choices made for them. Where the member acted as staff, their name is cleared from
       other members' records (reviewer, reverser, last editor, chooser), which are kept.

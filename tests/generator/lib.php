@@ -121,6 +121,19 @@ class local_cpdlog_generator extends component_generator_base
     }
 
     /**
+     * Deletes a Moodle account the way an administrator would, leaving its CPD data in place.
+     *
+     * @param array $record user (username).
+     * @return \stdClass The deleted account, with its scrambled username and email address.
+     */
+    public function create_deleted_account(array $record): \stdClass {
+        global $DB;
+        $user = $DB->get_record('user', ['username' => $record['user'], 'deleted' => 0], '*', MUST_EXIST);
+        delete_user($user);
+        return $DB->get_record('user', ['id' => $user->id], '*', MUST_EXIST);
+    }
+
+    /**
      * Parses a DD/MM/YYYY date as the start of that day in the site timezone.
      *
      * @param string $day The date.

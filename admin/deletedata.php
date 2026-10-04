@@ -36,7 +36,7 @@ $enabled = data_deleter::is_enabled();
 
 if ($userid) {
     $user = core_user::get_user($userid, '*', MUST_EXIST);
-    if ($user->deleted || isguestuser($user)) {
+    if (isguestuser($user)) {
         throw new moodle_exception('invaliduser', 'error', $url);
     }
     $memberurl = new moodle_url($url, ['userid' => $userid]);
@@ -70,10 +70,14 @@ if ($userid) {
     $PAGE->navbar->add($heading);
     echo $OUTPUT->header();
     echo $OUTPUT->heading($heading);
-    echo html_writer::tag('p', get_string('deletedata:identity', 'local_cpdlog', (object) [
-        'username' => s($user->username),
-        'email' => s($user->email),
-    ]));
+    if ($user->deleted) {
+        echo html_writer::tag('p', get_string('deletedata:identitydeleted', 'local_cpdlog', $user->id));
+    } else {
+        echo html_writer::tag('p', get_string('deletedata:identity', 'local_cpdlog', (object) [
+            'username' => s($user->username),
+            'email' => s($user->email),
+        ]));
+    }
     echo html_writer::tag('p', get_string('deletedata:willremove', 'local_cpdlog'));
     echo html_writer::alist($items);
     if ($queued) {
@@ -90,7 +94,7 @@ if ($userid) {
 
 $findform = new deletedata_find_form($url);
 if ($enabled && ($data = $findform->get_data())) {
-    $user = deletedata_find_form::find_user($data->member);
+    $user = deletedata_find_form::find_user($data->member, !empty($data->deletedaccount));
     redirect(new moodle_url($url, ['userid' => $user->id]));
 }
 

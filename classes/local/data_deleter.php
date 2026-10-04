@@ -123,7 +123,8 @@ final class data_deleter
         if (!self::is_enabled()) {
             throw new \moodle_exception('error:deletiondisabled', 'local_cpdlog');
         }
-        if (!$DB->record_exists('user', ['id' => $userid, 'deleted' => 0])) {
+        // Accounts already deleted in Moodle keep their CPD data (decision 12), so they can be chosen too.
+        if (!$DB->record_exists('user', ['id' => $userid])) {
             throw new \moodle_exception('invaliduser', 'error');
         }
         // One deletion per member at a time: the check and the insert run under a lock, and the register

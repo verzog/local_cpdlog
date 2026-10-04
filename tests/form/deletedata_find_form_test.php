@@ -68,4 +68,41 @@ final class deletedata_find_form_test extends \advanced_testcase
 
         $this->assertEquals($member->id, deletedata_find_form::find_user('sam@example.com')->id);
     }
+
+    /**
+     * A deleted account is found by its original username, original email address or user ID.
+     */
+    public function test_find_deleted_user(): void {
+        $this->resetAfterTest();
+        $generator = $this->getDataGenerator();
+        $active = $generator->create_user(['username' => 'active1', 'email' => 'active1@example.com']);
+        $gone = $generator->create_user(['username' => 'gone1', 'email' => 'Gone.One@example.com']);
+        $generator->get_plugin_generator('local_cpdlog')->create_deleted_account(['user' => 'gone1']);
+        // Another deleted account whose old email address starts like gone1's username.
+        $generator->create_user(['username' => 'other1', 'email' => 'gone1.x@example.com', 'deleted' => 1]);
+
+        $this->assertEquals($gone->id, deletedata_find_form::find_user('gone1', true)->id);
+        $this->assertEquals($gone->id, deletedata_find_form::find_user('GONE1', true)->id);
+        $this->assertEquals($gone->id, deletedata_find_form::find_user('gone.one@example.com', true)->id);
+        $this->assertEquals($gone->id, deletedata_find_form::find_user((string) $gone->id, true)->id);
+        $this->assertNull(deletedata_find_form::find_user('gone1'));
+        $this->assertNull(deletedata_find_form::find_user('active1', true));
+        $this->assertNull(deletedata_find_form::find_user('active1@example.com', true));
+        $this->assertNull(deletedata_find_form::find_user((string) $active->id, true));
+        $this->assertNull(deletedata_find_form::find_user('gone', true));
+        $this->assertNull(deletedata_find_form::find_user('', true));
+    }
+
+    /**
+     * Several deleted accounts with the same old email address are not found by it, only by user ID.
+     */
+    public function test_find_deleted_user_ambiguous(): void {
+        $this->resetAfterTest();
+        $first = $this->getDataGenerator()->create_user(['username' => 'twin1', 'email' => 'twin@example.com', 'deleted' => 1]);
+        $second = $this->getDataGenerator()->create_user(['username' => 'twin2', 'email' => 'twin@example.com', 'deleted' => 1]);
+
+        $this->assertNull(deletedata_find_form::find_user('twin@example.com', true));
+        $this->assertEquals($first->id, deletedata_find_form::find_user('twin1', true)->id);
+        $this->assertEquals($second->id, deletedata_find_form::find_user((string) $second->id, true)->id);
+    }
 }

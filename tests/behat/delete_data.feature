@@ -52,3 +52,25 @@ Feature: Deleting a member's CPD data
     When I navigate to "Plugins > Local plugins > CPD logbook > Delete member CPD data" in site administration
     Then I should see "CPD data deletion is switched off."
     And "Username or email address" "field" should not exist
+
+  Scenario: An administrator deletes the CPD data of a member whose Moodle account was already deleted
+    Given the following "local_cpdlog > deleted accounts" exist:
+      | user    |
+      | member1 |
+    And the following config values are set as admin:
+      | enabledeletion | 1 | local_cpdlog |
+    And I log in as "admin"
+    And I navigate to "Plugins > Local plugins > CPD logbook > Delete member CPD data" in site administration
+    When I set the field "Username or email address" to "member1@example.com"
+    And I press "Find member"
+    Then I should see "No single active account has this username or email address."
+    When I set the following fields to these values:
+      | Username or email address  | member1@example.com |
+      | Look for a deleted account | 1                   |
+    And I press "Find member"
+    Then I should see "Delete the CPD data of Member One"
+    And I should see "This Moodle account has been deleted."
+    And I should see "Entries with status \"Approved\": 2"
+    When I set the field "To confirm, type the user ID" to "member1"
+    And I press "Delete CPD data"
+    Then I should see "Type the account's user ID exactly to confirm."

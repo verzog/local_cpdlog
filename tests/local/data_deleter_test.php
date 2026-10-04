@@ -282,4 +282,21 @@ final class data_deleter_test extends \advanced_testcase
         $this->assertNotEmpty($DB->get_field(data_deleter::TABLE, 'timecompleted', ['id' => $queued]));
         $this->assertSame(0, data_deleter::cancel_queued());
     }
+
+    /**
+     * A member whose Moodle account was already deleted can still have their CPD data deleted.
+     */
+    public function test_deleted_account(): void {
+        global $DB;
+        $this->getDataGenerator()->get_plugin_generator('local_cpdlog')->create_deleted_account(['user' => 'member1']);
+        $this->assertSame(2, entry::count_records(['userid' => $this->member->id]));
+        set_config('enabledeletion', 1, 'local_cpdlog');
+
+        $id = data_deleter::queue((int) $this->member->id, (int) $this->admin->id);
+        $this->runAdhocTasks(delete_member_data::class);
+
+        $this->assertSame(data_deleter::STATUS_DONE, $DB->get_field(data_deleter::TABLE, 'status', ['id' => $id]));
+        $this->assertSame(0, entry::count_records(['userid' => $this->member->id]));
+        $this->assertSame(2, entry::count_records(['userid' => $this->other->id]));
+    }
 }
