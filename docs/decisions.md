@@ -90,6 +90,24 @@ scoping", 24/09/2026). Where this file and the scoping document differ, this fil
       custom user profile field, as well as by period, category, status and target met.
     - Installing or upgrading adds a starting report for each source, _CPD entries_ and _CPD
       progress by member_, shown to the _CPD staff_ audience: users with `local/cpdlog:viewall`.
+17. **Deleting a member's CPD data** (agreed 04/10/2026; the tool promised in decision 12).
+    - Staff with `local/cpdlog:deletedata` (RISK_PERSONAL and RISK_DATALOSS, no default roles) delete
+      one member at a time, found by exact username or email address. The page shows what would go,
+      and the member's username must be typed to confirm.
+    - Members whose Moodle accounts are already deleted can be found too (agreed 04/10/2026), by
+      original username, original email address or user ID, matched against what Moodle keeps
+      after scrambling the account. Their user ID is typed to confirm.
+    - An identifier must match exactly one account, active or deleted, or nothing is found.
+    - A deletion removes everything about the member: entries in every status, evidence files and
+      the cohort choices made for them. Where the member acted as staff, their name is cleared from
+      other members' records (reviewer, reverser, last editor, chooser), which are kept.
+    - Deletions are queued and run by an adhoc task in one transaction, so a failure leaves them
+      queued for a retry. While one is queued for a member, no other can be queued for them.
+    - The site setting _Allow CPD data deletion_ (off by default) is the kill-switch: while it is off,
+      no deletion can be queued and a queued one is cancelled instead of run.
+    - Each deletion fires `member_data_deleted` and is kept in a register (`local_cpdlog_deletion`)
+      listed on the same page: member, requested by, when, status and what was removed. The privacy
+      provider declares and exports the register.
 
 ## Schema notes
 
@@ -134,7 +152,7 @@ of the licence overrides in `.phpcs.xml`.
 | 2. Capture | Entry form, validation, draft and submit, privacy, evidence upload | Done |
 | 3. Approval | Staff queue, approve / reject / reverse, events, message providers | Done |
 | 4. Reporting | Member progress page; Report Builder source for staff | Done |
-| 5. Privacy and hardening | Full privacy provider, PHPUnit and Behat coverage | |
+| 5. Privacy and hardening | Full privacy provider, PHPUnit and Behat coverage; staff deletion tool | Done |
 | 6. iMIS push | On hold until the iMIS write path is proven in sccadev | |
 | 7. iMIS pull | Read-only import and conflict detection | |
 | 8. Calendar and events | Period dates in the calendar; configurable upcoming-events cache | |

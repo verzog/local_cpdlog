@@ -32,6 +32,15 @@ if ($hassiteconfig) {
             '40',
             PARAM_FLOAT
         ));
+        $enabledeletion = new admin_setting_configcheckbox(
+            'local_cpdlog/enabledeletion',
+            new lang_string('enabledeletion', 'local_cpdlog'),
+            new lang_string('enabledeletion_desc', 'local_cpdlog'),
+            0
+        );
+        // Switching deletion off cancels queued deletions at once.
+        $enabledeletion->set_updatedcallback([\local_cpdlog\local\data_deleter::class, 'setting_updated']);
+        $settings->add($enabledeletion);
     }
     $ADMIN->add('local_cpdlog', $settings);
 }
@@ -55,4 +64,11 @@ $ADMIN->add('local_cpdlog', new admin_externalpage(
     new lang_string('approvalqueue', 'local_cpdlog'),
     new moodle_url('/local/cpdlog/admin/review.php'),
     'local/cpdlog:approve'
+));
+// Deleting a member's CPD data is visible to holders of local/cpdlog:deletedata.
+$ADMIN->add('local_cpdlog', new admin_externalpage(
+    'local_cpdlog_deletedata',
+    new lang_string('deletedata', 'local_cpdlog'),
+    new moodle_url('/local/cpdlog/admin/deletedata.php'),
+    'local/cpdlog:deletedata'
 ));

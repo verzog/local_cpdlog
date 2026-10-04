@@ -2,13 +2,40 @@
 
 A continuing professional development (CPD) logbook for professional members, inside Moodle. Members log CPD hours by category against courses they are enrolled in,
 attach evidence, and submit entries for staff approval. Members see their own progress against
-configurable targets; staff report across all members. CPD records held in iMIS are replicated
-one way, by row origin, rather than bidirectionally synced.
+configurable targets; staff approve entries and report across all members.
 
-This plugin is at an early stage of development. See `docs/decisions.md` for the agreed design
-decisions and the build plan.
+The logbook, evidence, approvals, progress, staff reports and data deletion are complete. One-way
+replication of CPD records with iMIS is planned but not built yet. See `docs/decisions.md` for the
+agreed design decisions and the build plan.
 
-## Installing via uploaded ZIP file
+## Contents
+
+- [Requirements](#requirements)
+- [Installing](#installing)
+- [Setting up the plugin](#setting-up-the-plugin)
+- [Capabilities](#capabilities)
+- [Using the logbook (members)](#using-the-logbook-members)
+- [Approving CPD (approvers)](#approving-cpd-approvers)
+- [Staff reports](#staff-reports)
+- [Privacy and data deletion](#privacy-and-data-deletion)
+- [Development and testing](#development-and-testing)
+- [License](#license)
+
+## Requirements
+
+| Moodle | PHP |
+|---|---|
+| 5.0 | 8.2–8.4 |
+| 5.1 | 8.2–8.4 |
+| 5.2 | 8.3–8.4 |
+| 5.3 LTS | 8.3–8.4 |
+
+Moodle's cron must run regularly (every minute is recommended): approval notifications and
+data deletions are carried out by background tasks.
+
+## Installing
+
+### Installing via uploaded ZIP file
 
 1. Log in to your Moodle site as an admin and go to _Site administration >
    Plugins > Install plugins_.
@@ -16,7 +43,7 @@ decisions and the build plan.
    extra details if your plugin type is not automatically detected.
 3. Check the plugin validation report and finish the installation.
 
-## Installing manually
+### Installing manually
 
 The plugin can also be installed by putting the contents of this directory in
 
@@ -30,37 +57,151 @@ Notifications_ to complete the installation, or run
 
 to complete the installation from the command line.
 
-## Logging CPD
+### Upgrading
 
-Members open _My CPD logbook_ from their profile page (or `/local/cpdlog/index.php`) and log
-activities against courses they are or were enrolled in, or have completed. An activity's date
-must fall in an open reporting period, and its hours are limited by the _Maximum hours per entry_
-setting. Entries are saved as drafts and then submitted for review; a submitted entry cannot be
-changed by the member. Entries imported from iMIS are shown read-only.
+Replace the plugin files with the new version (keeping the same folder), then visit _Site
+administration > Notifications_ or run `php admin/cli/upgrade.php`. Merging code into the
+repository does not change a live site until the files are deployed and the upgrade has run.
 
-The logbook opens with the member's progress for the current reporting period: one bar per
-target that applies to them, counting approved hours only, with hours still waiting for review
-shown beside them. Earlier and later periods can be picked from the _Reporting period_ menu.
+## Setting up the plugin
 
-Members can attach up to 5 evidence files (PDF, Word or image) to an entry. Where a category is
-marked _Evidence required_, an entry cannot be submitted until it has at least one file. Evidence
-is private: only the member, staff with `local/cpdlog:viewall` and approvers can download it, and
-files are always downloaded rather than opened in the browser.
+Everything below is under _Site administration > Plugins > Local plugins > CPD logbook_ unless
+stated otherwise. Do these once after installing, in this order.
 
-## Approving CPD
+### 1. Check the settings
 
-Approvers review submitted entries under _Site administration > Plugins > Local plugins > CPD
-logbook > Approval queue_ (`/local/cpdlog/admin/review.php`), oldest submission first. Each entry
-can be approved, or rejected with a reason the member sees; a rejected entry goes back to the
-member to edit and resubmit. Up to 50 entries on a page can be ticked and approved together.
-Approvers cannot review their own entries, or entries in a closed period.
+Open _Settings_:
 
-An approval made in error can be reversed from the queue's _Approved entries_ tab, with a reason.
-Reversal is final: the entry stays in the member's logbook as reversed and no longer counts.
+- **Maximum hours per entry** (default 40): the most hours one entry can claim.
+- **Allow CPD data deletion** (default off): switches on the deletion tool described in
+  [Privacy and data deletion](#privacy-and-data-deletion). Leave it off until it is needed.
+
+### 2. Give staff their roles
+
+Members need no role assignment: logging and viewing their own CPD is granted to the
+authenticated user role by default. Site managers hold every staff capability except deletion.
+
+For other staff, create a site-level role for each job:
+
+1. Go to _Site administration > Users > Permissions > Define roles_ and add a role (for example
+   "CPD approver") with context type _System_.
+2. Allow the capabilities the job needs (see [Capabilities](#capabilities)). A typical set-up:
+   - **CPD approver:** `local/cpdlog:approve`, plus `local/cpdlog:viewall` to see the staff reports.
+   - **CPD administrator:** `local/cpdlog:manageperiods` and `local/cpdlog:viewall`.
+   - **CPD data officer:** `local/cpdlog:deletedata`, given only to the few staff who handle
+     deletion requests.
+3. Assign the role to the staff under _Site administration > Users > Permissions > Assign system
+   roles_.
+
+### 3. Review the categories
+
+Open _Categories_. Categories group CPD activities. The plugin starts with the three RACGP
+activity types (Educational activities, Reviewing performance, Measuring outcomes), which can be
+renamed, reordered, disabled or added to. Tick _Evidence required_ on a category to stop entries
+in it being submitted without at least one evidence file. Categories are disabled rather than
+deleted, so entries are never orphaned.
+
+### 4. Add reporting periods
+
+Open _Reporting periods_ and add one for each CPD year or cycle, for example _2026_ from
+01/01/2026 to 31/12/2026. Periods are whole days in the site timezone and cannot overlap. Members
+can only log activities dated inside an open period.
+
+Closing a period locks its entries and targets; it can be reopened. A period can be deleted only
+while nothing refers to it.
+
+### 5. Set targets for each period
+
+From _Reporting periods_, open a period's _Targets_. A target sets the hours required in that
+period, for all members or for one cohort:
+
+- Tick one category for a per-category minimum, several for a combined minimum, or none for a
+  total across all categories.
+- Everyone must meet the all-members targets; a member's cohort adds its own targets on top.
+
+Cohorts are managed in Moodle under _Site administration > Users > Accounts > Cohorts_.
+
+### 6. Resolve cohort conflicts
+
+From _Reporting periods_, open a period's _Cohort conflicts_ (shown with the number still
+unresolved). It lists members who are in more than one cohort with targets in that period. For
+each, choose which cohort's targets to add, or none. Until a choice is made, only the all-members
+targets apply to them. Check this page again whenever cohort membership changes.
+
+### 7. Check notifications
 
 Members are notified when an entry is approved, rejected or reversed, and approvers when an entry
-is submitted. Notifications are sent as a popup and by email by default; each person can change this
+is submitted. They are sent as a popup and by email by default. Site defaults are under _Site
+administration > General > Messaging > Notification settings_; each person can change their own
 in their notification preferences.
+
+### 8. Share the staff reports
+
+The plugin adds two starting reports, _CPD entries_ and _CPD progress by member_, under _Site
+administration > Reports > Report builder > Custom reports_. They are shown to the _CPD staff_
+audience (users with `local/cpdlog:viewall`). See [Staff reports](#staff-reports).
+
+## Capabilities
+
+All capabilities are granted at site (system) level.
+
+| Capability | What it allows | Given by default to |
+|---|---|---|
+| `local/cpdlog:viewown` | View own CPD logbook and progress | Authenticated user |
+| `local/cpdlog:submit` | Log and submit own CPD entries | Authenticated user |
+| `local/cpdlog:approve` | Approve, reject or reverse CPD entries | Manager |
+| `local/cpdlog:viewall` | See all members' CPD in staff reports; download evidence | Manager |
+| `local/cpdlog:manageperiods` | Manage categories, periods, targets and cohort conflicts | Manager |
+| `local/cpdlog:sync` | Run or retry iMIS replication (for the planned iMIS link) | Manager |
+| `local/cpdlog:deletedata` | Permanently delete a member's CPD data | Nobody |
+
+## Using the logbook (members)
+
+Members open _My CPD logbook_ from their profile page (or `/local/cpdlog/index.php`).
+
+### Progress
+
+The logbook opens with the member's progress for the current reporting period: one bar per target
+that applies to them, counting approved hours only, with hours still waiting for review shown
+beside them. Earlier and later periods can be picked from the _Reporting period_ menu.
+
+### Logging an activity
+
+1. Choose _Log CPD activity_.
+2. Pick the course (one the member is or was enrolled in, or has completed), the category, the
+   date and the hours, and describe the activity. The date must fall in an open reporting period,
+   and the hours are limited by the _Maximum hours per entry_ setting.
+3. Attach evidence if needed: up to 5 files (PDF, Word or image). Categories marked _Evidence
+   required_ need at least one file before the entry can be submitted.
+4. Save. The entry is kept as a draft that the member can change or delete.
+5. Submit the entry for review. A submitted entry cannot be changed by the member.
+
+Evidence is private: only the member, staff with `local/cpdlog:viewall` and approvers can
+download it, and files are always downloaded rather than opened in the browser.
+
+### What happens next
+
+- **Approved:** the hours count towards the member's targets.
+- **Rejected:** the entry goes back to the member with the approver's reason, to edit and
+  resubmit.
+- **Reversed:** an approval made in error was withdrawn, with a reason. The entry stays in the
+  logbook as reversed and no longer counts.
+
+Entries imported from iMIS will be shown read-only once the iMIS link is built.
+
+## Approving CPD (approvers)
+
+Approvers review submitted entries under _Approval queue_ (`/local/cpdlog/admin/review.php`),
+oldest submission first. Each entry shows the member, activity, hours, description and evidence.
+
+- **Approve** an entry, or **reject** it with a reason the member sees.
+- **Approve several:** tick up to 50 entries on a page and approve them together.
+- **Reverse** an approval made in error from the _Approved entries_ tab, with a reason. Reversal
+  is final.
+
+Approvers cannot review their own entries, or entries in a closed period. If two approvers act on
+the same entry at once, only the first action counts; the second approver is asked to try again
+and then sees that the entry has already been reviewed.
 
 ## Staff reports
 
@@ -73,60 +214,50 @@ Custom reports_:
   included when they logged CPD in the period or belong to a cohort with targets in it.
 
 Both can be filtered by cohort, by any custom user profile field, and by period, category, status
-or whether a target is met, and exported like any custom report. The plugin adds two starting
-reports, _CPD entries_ and _CPD progress by member_, visible to the _CPD staff_ audience (users
-with `local/cpdlog:viewall`); staff with Report Builder editing rights can copy or change them.
+or whether a target is met, and exported like any custom report. Staff with Report Builder editing
+rights can copy the starting reports or build new ones from these sources.
 
 ## Privacy and data deletion
 
 CPD records are retained compliance records and are never deleted automatically. The privacy
 provider exports a member's CPD data on request, but deletion requests, expired-context clean-up
 and account deletion leave CPD records in place. Reject or hand-process CPD deletion requests
-under _Site administration > Users > Privacy and policies > Data requests_; staff delete CPD
-records manually.
+under _Site administration > Users > Privacy and policies > Data requests_, and delete a member's
+CPD data with the deletion tool:
 
-## Setting up approvers
+1. A site administrator switches on _Allow CPD data deletion_ in the CPD logbook settings, and
+   gives the `local/cpdlog:deletedata` capability (held by no role by default) to the staff who
+   handle deletion requests.
+2. Under _Delete member CPD data_, find the member by exact username or email address.
+   - If the member's Moodle account has already been deleted, tick _Look for a deleted account_
+     and enter their original username, original email address or user ID. Moodle keeps a deleted
+     account's CPD data, so it can still be removed here.
+   - Only an identifier that matches exactly one account is accepted, so the wrong member cannot
+     be picked. If several deleted accounts match, use the user ID.
+3. Check what will be removed, then confirm by typing the member's username (or, for a deleted
+   account, its user ID).
+4. The deletion runs in the background within a few minutes. It removes all the member's entries,
+   evidence files and cohort choices, and clears their name from records where they acted as staff.
+   It cannot be undone; export the member's data first with the data privacy tool if a copy is
+   needed.
 
-CPD entries are approved by a designated site-level role. After installing:
+Each deletion is listed on the same page and logged as a _Member CPD data deleted_ event. Switching
+the setting off again stops new deletions and cancels any that are queued; switching it back on
+does not restart them.
 
-1. Go to _Site administration > Users > Permissions > Define roles_ and add a role (for example
-   "CPD approver") with context type _System_.
-2. Allow `local/cpdlog:approve`. Add `local/cpdlog:viewall` if approvers should also see every
-   member's logbook, and `local/cpdlog:manageperiods` for staff who maintain categories, periods
-   and targets.
-3. Assign the role to the approving staff under _Site administration > Users > Permissions >
-   Assign system roles_.
+## Development and testing
 
-Members need no role assignment: logging and viewing their own CPD is granted to the
-authenticated user role by default.
+The plugin follows the Moodle coding style and is checked on every push by GitHub Actions
+(`.github/workflows/moodle-ci.yml`) with
+[moodle-plugin-ci](https://moodlehq.github.io/moodle-plugin-ci/) across Moodle 5.0 to 5.3: PHP lint,
+code style, PHPDoc, Mustache, PHPUnit and Behat.
 
-## Categories, periods and targets
+To run the tests locally in a Moodle checkout with the plugin installed:
 
-Staff with `local/cpdlog:manageperiods` maintain the CPD set-up under _Site administration >
-Plugins > Local plugins > CPD logbook_:
-
-- **Categories** group CPD activities. The plugin starts with the three RACGP activity types
-  (Educational activities, Reviewing performance, Measuring outcomes), which can be renamed,
-  reordered, disabled or added to. Categories are disabled rather than deleted, so entries are
-  never orphaned.
-- **Reporting periods** are whole days in the site timezone and cannot overlap. Closing a period
-  locks its entries and targets; it can be reopened. A period can be deleted only while nothing
-  refers to it.
-- **Targets** set the hours required in a period, for all members or one cohort. Tick one
-  category for a per-category minimum, several for a combined minimum, or none for a total.
-  Everyone must meet the all-members targets; a member's cohort adds its own targets on top.
-- **Cohort conflicts** list members who are in more than one cohort with targets in a period.
-  Staff choose which cohort's targets to add for each, or none. Until then only the all-members
-  targets apply to them.
-
-## Requirements
-
-| Moodle | PHP |
-|---|---|
-| 5.0 | 8.2–8.4 |
-| 5.1 | 8.2–8.4 |
-| 5.2 | 8.3–8.4 |
-| 5.3 LTS | 8.3–8.4 |
+    $ php admin/tool/phpunit/cli/init.php
+    $ vendor/bin/phpunit --testsuite local_cpdlog_testsuite
+    $ php admin/tool/behat/cli/init.php
+    $ vendor/bin/behat --config {behat_dataroot}/behatrun/behat/behat.yml --tags=@local_cpdlog
 
 ## License
 

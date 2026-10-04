@@ -34,6 +34,7 @@ final class access_test extends \advanced_testcase
     public function test_capabilities_installed_with_risks(): void {
         $expected = [
             'local/cpdlog:approve' => RISK_PERSONAL | RISK_DATALOSS,
+            'local/cpdlog:deletedata' => RISK_PERSONAL | RISK_DATALOSS,
             'local/cpdlog:manageperiods' => RISK_CONFIG,
             'local/cpdlog:submit' => RISK_SPAM,
             'local/cpdlog:sync' => RISK_CONFIG,
@@ -61,7 +62,22 @@ final class access_test extends \advanced_testcase
         $this->assertTrue(has_capability('local/cpdlog:viewown', $context, $user));
         $this->assertFalse(has_capability('local/cpdlog:viewall', $context, $user));
         $this->assertFalse(has_capability('local/cpdlog:approve', $context, $user));
+        $this->assertFalse(has_capability('local/cpdlog:deletedata', $context, $user));
         $this->assertFalse(has_capability('local/cpdlog:manageperiods', $context, $user));
         $this->assertFalse(has_capability('local/cpdlog:sync', $context, $user));
+    }
+
+    /**
+     * No role can delete CPD data by default, not even managers.
+     */
+    public function test_deletedata_has_no_default_roles(): void {
+        global $DB;
+        $this->resetAfterTest();
+        $manager = $this->getDataGenerator()->create_user();
+        $roleid = $DB->get_field('role', 'id', ['shortname' => 'manager'], MUST_EXIST);
+        $this->getDataGenerator()->role_assign($roleid, $manager->id);
+
+        $this->assertFalse(has_capability('local/cpdlog:deletedata', \context_system::instance(), $manager));
+        $this->assertArrayNotHasKey('local/cpdlog:deletedata', get_default_capabilities('manager'));
     }
 }

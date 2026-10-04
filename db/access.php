@@ -32,6 +32,13 @@ $capabilities = [
             'manager' => CAP_ALLOW,
         ],
     ],
+    // Deleting a member's CPD data cannot be undone, so no role has it by default (decision 12).
+    'local/cpdlog:deletedata' => [
+        'riskbitmask' => RISK_PERSONAL | RISK_DATALOSS,
+        'captype' => 'write',
+        'contextlevel' => CONTEXT_SYSTEM,
+        'archetypes' => [],
+    ],
     'local/cpdlog:manageperiods' => [
         'riskbitmask' => RISK_CONFIG,
         'captype' => 'write',

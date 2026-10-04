@@ -31,9 +31,10 @@ use core_privacy\local\request\writer;
 /**
  * Privacy provider for the CPD logbook plugin.
  *
- * All data is held at system context. Exports cover a member's own entries and cohort choices, and
- * a staff member's own actions. Deletion is deliberately not automatic: CPD entries are compliance
- * records that SCCA retains, and deletions are made manually by staff (see docs/decisions.md).
+ * All data is held at system context. Exports cover a member's own entries, cohort choices and the
+ * register of deletions of their data, and a staff member's own actions. Deletion is deliberately not
+ * automatic: CPD entries are compliance records that SCCA retains, and staff delete them with the CPD
+ * data deletion tool (see docs/decisions.md).
  */
 class provider implements
     \core_privacy\local\metadata\provider,
@@ -87,6 +88,16 @@ class provider implements
             'timemodified' => 'privacy:metadata:local_cpdlog_cohortchoice:timemodified',
         ], 'privacy:metadata:local_cpdlog_cohortchoice');
 
+        $collection->add_database_table('local_cpdlog_deletion', [
+            'userid' => 'privacy:metadata:local_cpdlog_deletion:userid',
+            'requestedby' => 'privacy:metadata:local_cpdlog_deletion:requestedby',
+            'status' => 'privacy:metadata:local_cpdlog_deletion:status',
+            'entriesdeleted' => 'privacy:metadata:local_cpdlog_deletion:entriesdeleted',
+            'filesdeleted' => 'privacy:metadata:local_cpdlog_deletion:filesdeleted',
+            'timerequested' => 'privacy:metadata:local_cpdlog_deletion:timerequested',
+            'timecompleted' => 'privacy:metadata:local_cpdlog_deletion:timecompleted',
+        ], 'privacy:metadata:local_cpdlog_deletion');
+
         $collection->add_subsystem_link('core_files', [], 'privacy:metadata:core_files');
         $collection->add_subsystem_link('core_message', [], 'privacy:metadata:core_message');
 
@@ -127,8 +138,12 @@ class provider implements
         foreach (self::ENTRY_USER_FIELDS as $field) {
             $userlist->add_from_sql($field, "SELECT {$field} FROM {local_cpdlog_entry} WHERE {$field} > 0", []);
         }
+        // A chooser is 0 once that staff member's own CPD data has been deleted.
         foreach (['userid', 'chosenby'] as $field) {
-            $userlist->add_from_sql($field, "SELECT {$field} FROM {local_cpdlog_cohortchoice}", []);
+            $userlist->add_from_sql($field, "SELECT {$field} FROM {local_cpdlog_cohortchoice} WHERE {$field} > 0", []);
+        }
+        foreach (['userid', 'requestedby'] as $field) {
+            $userlist->add_from_sql($field, "SELECT {$field} FROM {local_cpdlog_deletion}", []);
         }
         foreach (self::CONFIG_TABLES as $table) {
             $userlist->add_from_sql('usermodified', "SELECT usermodified FROM {{$table}} WHERE usermodified > 0", []);
@@ -196,6 +211,22 @@ class provider implements
             $writer->export_data($subcontext, (object) ['choices' => $choices]);
         }
 
+        // Deletions of the member's own CPD data, as recorded in the register.
+        $deletions = [];
+        foreach ($DB->get_records('local_cpdlog_deletion', ['userid' => $userid], 'timerequested') as $deletion) {
+            $deletions[] = (object) [
+                'status' => $deletion->status,
+                'entriesdeleted' => $deletion->entriesdeleted,
+                'filesdeleted' => $deletion->filesdeleted,
+                'timerequested' => transform::datetime($deletion->timerequested),
+                'timecompleted' => $deletion->timecompleted ? transform::datetime($deletion->timecompleted) : null,
+            ];
+        }
+        if ($deletions) {
+            $subcontext = [$component, get_string('privacy:deletions', 'local_cpdlog')];
+            $writer->export_data($subcontext, (object) ['deletions' => $deletions]);
+        }
+
         // As staff, only the fact of each action is exported, not other members' CPD details.
         $actions = [];
         $sql = 'SELECT id, reviewedby, timereviewed, reversedby, timereversed, usermodified, timemodified
@@ -212,6 +243,9 @@ class provider implements
         }
         foreach ($DB->get_records('local_cpdlog_cohortchoice', ['chosenby' => $userid]) as $choice) {
             $actions[] = (object) ['cohortchoiceid' => $choice->id, 'chosen' => transform::datetime($choice->timemodified)];
+        }
+        foreach ($DB->get_records('local_cpdlog_deletion', ['requestedby' => $userid]) as $deletion) {
+            $actions[] = (object) ['deletionid' => $deletion->id, 'requested' => transform::datetime($deletion->timerequested)];
         }
         foreach (self::CONFIG_TABLES as $table) {
             foreach ($DB->get_records($table, ['usermodified' => $userid], '', 'id, timemodified') as $row) {
@@ -266,6 +300,10 @@ class provider implements
         }
         $select = 'userid = :u1 OR chosenby = :u2';
         if ($DB->record_exists_select('local_cpdlog_cohortchoice', $select, ['u1' => $userid, 'u2' => $userid])) {
+            return true;
+        }
+        $select = 'userid = :u1 OR requestedby = :u2';
+        if ($DB->record_exists_select('local_cpdlog_deletion', $select, ['u1' => $userid, 'u2' => $userid])) {
             return true;
         }
         foreach (self::CONFIG_TABLES as $table) {
