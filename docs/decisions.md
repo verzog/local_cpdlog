@@ -140,9 +140,11 @@ scoping", 24/09/2026). Where this file and the scoping document differ, this fil
 
 ## Licensing note
 
-The plugin is Mode A (proprietary, SCCA). If it is ever open-sourced it becomes Mode B: that
-needs SCCA's written permission, GPLv3+ headers and `@license` tags on every file, and removal
-of the licence overrides in `.phpcs.xml`.
+The plugin is Mode B: GPLv3 or later, copyright 2026 Vernon Spain. It was first written with
+the proprietary SCCA (Mode A) headers by mistake, carried over from the case study plugin; they
+were replaced on 04/10/2026. Every file carries the standard Moodle GPL boilerplate and the
+GPL `@license` tag, the full licence text is in `COPYING.txt`, and phpcs runs the stock `moodle`
+standard, including the boilerplate sniff, with no `.phpcs.xml` overrides.
 
 ## Build plan
 
