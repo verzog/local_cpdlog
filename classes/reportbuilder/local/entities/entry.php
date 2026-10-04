@@ -197,10 +197,11 @@ class entry extends base
         ))
             ->add_joins($this->get_joins())
             ->set_options_callback(static function (): array {
-                return [
-                    entry_persistent::SOURCE_MOODLE => get_string('source:moodle', 'local_cpdlog'),
-                    entry_persistent::SOURCE_IMIS => get_string('source:imis', 'local_cpdlog'),
-                ];
+                $options = [];
+                foreach (entry_persistent::SOURCES as $source) {
+                    $options[$source] = get_string('source:' . $source, 'local_cpdlog');
+                }
+                return $options;
             });
 
         $filters[] = (new filter(

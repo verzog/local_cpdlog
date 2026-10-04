@@ -108,6 +108,25 @@ scoping", 24/09/2026). Where this file and the scoping document differ, this fil
     - Each deletion fires `member_data_deleted` and is kept in a register (`local_cpdlog_deletion`)
       listed on the same page: member, requested by, when, status and what was removed. The privacy
       provider declares and exports the register.
+18. **CPD from the image blog** (agreed 04/10/2026). Hours awarded by `local_imageblog` for its
+    clinical cases (diagnosis, best-diagnosis bonus and reading the outcome) count in the logbook.
+    - The logbook pulls them: a scheduled task every 15 minutes reads the image blog's
+      `local_imageblog_case_cpd` table, so the image blog needs no change and works without the
+      logbook. The task and its settings exist only when the image blog is installed.
+    - Each award becomes an **approved** entry with source `imageblog` and reference
+      `postid:userid:reason`, so re-running updates rather than duplicates. No course is recorded;
+      the course name reads _Image blog_. Entries are read-only.
+    - The category is a setting (default Educational activities, EA) applying to new entries. Only
+      enabled categories are offered or used; a disabled choice falls back to EA.
+    - The first run imports **past awards**. Awards outside every period wait for a period.
+    - The image blog owns the hours: changed hours are followed, a withdrawn award reverses its
+      entry, and a returning award approves it again with its new date and period (or waits for a
+      period, like a new award).
+    - Awards that existed when a member's CPD data was deleted are never copied back. The deletion
+      records the member's highest award id, because the image blog re-stamps an award's time
+      whenever it refreshes it (for example when the outcome is read again). Nothing is copied while
+      a deletion is queued, and each member's awards are copied under the same lock that queuing a
+      deletion takes.
 
 ## Schema notes
 
@@ -158,6 +177,7 @@ standard, including the boilerplate sniff, with no `.phpcs.xml` overrides.
 | 6. iMIS push | On hold until the iMIS write path is proven in sccadev | |
 | 7. iMIS pull | Read-only import and conflict detection | |
 | 8. Calendar and events | Period dates in the calendar; configurable upcoming-events cache | |
+| Image blog | Copy CPD awarded by `local_imageblog` into the logbook | Done |
 
 ## Still open
 

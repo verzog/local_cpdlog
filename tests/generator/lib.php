@@ -138,6 +138,36 @@ class local_cpdlog_generator extends component_generator_base
     }
 
     /**
+     * Records a CPD award in the image blog's own tables, as local_imageblog does on a revealed case.
+     *
+     * @param array $record user (username), case (post title, created if new), reason (participation,
+     *                      bestanswer or view; default participation), hours (default 1) and day
+     *                      (DD/MM/YYYY, default today).
+     * @return int The award id.
+     */
+    public function create_imageblog_award(array $record): int {
+        global $DB;
+        $userid = $DB->get_field('user', 'id', ['username' => $record['user']], MUST_EXIST);
+        $title = $record['case'] ?? 'Clinical case';
+        $postid = $DB->get_field(\local_cpdlog\local\imageblog_sync::POST_TABLE, 'id', ['title' => $title]);
+        if (!$postid) {
+            $postid = $DB->insert_record(\local_cpdlog\local\imageblog_sync::POST_TABLE, (object) [
+                'authorid' => get_admin()->id,
+                'title' => $title,
+                'timecreated' => time(),
+                'timemodified' => time(),
+            ]);
+        }
+        return (int) $DB->insert_record(\local_cpdlog\local\imageblog_sync::AWARD_TABLE, (object) [
+            'postid' => $postid,
+            'userid' => $userid,
+            'hours' => $record['hours'] ?? 1,
+            'reason' => $record['reason'] ?? 'participation',
+            'timeawarded' => isset($record['day']) ? self::parse_day($record['day']) + 10 * HOURSECS : time(),
+        ]);
+    }
+
+    /**
      * Parses a DD/MM/YYYY date as the start of that day in the site timezone.
      *
      * @param string $day The date.

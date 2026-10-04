@@ -78,5 +78,16 @@ function xmldb_local_cpdlog_upgrade($oldversion) {
         upgrade_plugin_savepoint(true, 2026100400, 'local', 'cpdlog');
     }
 
+    if ($oldversion < 2026100403) {
+        // Remember which image blog awards a deletion covered, so they are never copied back.
+        $dbman = $DB->get_manager();
+        $table = new xmldb_table('local_cpdlog_deletion');
+        $field = new xmldb_field('imageblogawardid', XMLDB_TYPE_INTEGER, '10', null, null, null, null, 'timecompleted');
+        if (!$dbman->field_exists($table, $field)) {
+            $dbman->add_field($table, $field);
+        }
+        upgrade_plugin_savepoint(true, 2026100403, 'local', 'cpdlog');
+    }
+
     return true;
 }

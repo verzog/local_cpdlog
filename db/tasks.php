@@ -15,7 +15,7 @@
 // along with Moodle.  If not, see <https://www.gnu.org/licenses/>.
 
 /**
- * Version information for the CPD logbook plugin.
+ * Scheduled tasks of the CPD logbook.
  *
  * @package    local_cpdlog
  * @copyright  2026 Vernon Spain
@@ -24,9 +24,14 @@
 
 defined('MOODLE_INTERNAL') || die();
 
-$plugin->component = 'local_cpdlog';
-$plugin->version = 2026100403;
-$plugin->requires = 2025041400; // Moodle 5.0.
-$plugin->supported = [500, 503];
-$plugin->maturity = MATURITY_ALPHA;
-$plugin->release = '0.1.0';
+$tasks = [
+    [
+        'classname' => '\local_cpdlog\task\sync_imageblog',
+        'blocking' => 0,
+        'minute' => '*/15',
+        'hour' => '*',
+        'day' => '*',
+        'month' => '*',
+        'dayofweek' => '*',
+    ],
+];

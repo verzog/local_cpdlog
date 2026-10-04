@@ -56,6 +56,19 @@ final class data_deleter
     /** @var string A deletion that was not run because the tool was switched off. */
     const STATUS_CANCELLED = 'cancelled';
 
+    /** @var string Lock type taken per member while queuing a deletion or copying image blog CPD. */
+    const LOCK_TYPE = 'local_cpdlog_deletion';
+
+    /**
+     * Returns the lock key for a member, used with LOCK_TYPE.
+     *
+     * @param int $userid The member.
+     * @return string
+     */
+    public static function lock_key(int $userid): string {
+        return 'user' . $userid;
+    }
+
     /**
      * Whether the site setting allows deletions.
      *
@@ -133,7 +146,7 @@ final class data_deleter
         }
         // One deletion per member at a time: the check and the insert run under a lock, and the register
         // row and its task are written together, so neither can exist without the other.
-        $lock = \core\lock\lock_config::get_lock_factory('local_cpdlog_deletion')->get_lock('user' . $userid, 5);
+        $lock = \core\lock\lock_config::get_lock_factory(self::LOCK_TYPE)->get_lock(self::lock_key($userid), 5);
         if (!$lock) {
             throw new \moodle_exception('error:deletionqueued', 'local_cpdlog');
         }
@@ -224,6 +237,13 @@ final class data_deleter
         $DB->delete_records(target_resolver::CHOICE_TABLE, ['userid' => $userid]);
         self::clear_staff_traces($userid);
 
+        // Image blog awards that exist now are never copied back into the logbook (decision 18).
+        if (imageblog_sync::is_installed()) {
+            $deletion->imageblogawardid = (int) $DB->get_field_sql(
+                'SELECT MAX(id) FROM {' . imageblog_sync::AWARD_TABLE . '} WHERE userid = :userid',
+                ['userid' => $userid]
+            );
+        }
         $deletion->status = self::STATUS_DONE;
         $deletion->entriesdeleted = $entries;
         $deletion->filesdeleted = $files;

@@ -45,6 +45,28 @@ if ($hassiteconfig) {
         // Switching deletion off cancels queued deletions at once.
         $enabledeletion->set_updatedcallback([\local_cpdlog\local\data_deleter::class, 'setting_updated']);
         $settings->add($enabledeletion);
+
+        // CPD hours from the image blog appear only when that plugin is installed.
+        if (\local_cpdlog\local\imageblog_sync::is_installed()) {
+            $settings->add(new admin_setting_heading(
+                'local_cpdlog/imageblogheading',
+                new lang_string('imageblog', 'local_cpdlog'),
+                new lang_string('imageblogheading_desc', 'local_cpdlog')
+            ));
+            $settings->add(new admin_setting_configcheckbox(
+                'local_cpdlog/imageblogenabled',
+                new lang_string('imageblogenabled', 'local_cpdlog'),
+                new lang_string('imageblogenabled_desc', 'local_cpdlog'),
+                1
+            ));
+            $settings->add(new admin_setting_configselect(
+                'local_cpdlog/imageblogcategory',
+                new lang_string('imageblogcategory', 'local_cpdlog'),
+                new lang_string('imageblogcategory_desc', 'local_cpdlog'),
+                'EA',
+                [\local_cpdlog\local\imageblog_sync::class, 'get_category_choices']
+            ));
+        }
     }
     $ADMIN->add('local_cpdlog', $settings);
 }

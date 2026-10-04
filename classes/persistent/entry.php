@@ -67,6 +67,12 @@ class entry extends \core\persistent
     /** @var string Imported from iMIS, which owns it; read-only in Moodle. */
     const SOURCE_IMIS = 'imis';
 
+    /** @var string Copied from the image blog (local_imageblog), which owns it; read-only here. */
+    const SOURCE_IMAGEBLOG = 'imageblog';
+
+    /** @var string[] Every source. */
+    const SOURCES = [self::SOURCE_MOODLE, self::SOURCE_IMIS, self::SOURCE_IMAGEBLOG];
+
     /** @var float Largest value the hours column holds. */
     const MAX_HOURS = 9999.99;
 
@@ -93,7 +99,7 @@ class entry extends \core\persistent
             ],
             'source' => [
                 'type' => PARAM_ALPHA,
-                'choices' => [self::SOURCE_MOODLE, self::SOURCE_IMIS],
+                'choices' => self::SOURCES,
                 'default' => self::SOURCE_MOODLE,
             ],
             'externalref' => ['type' => PARAM_RAW, 'null' => NULL_ALLOWED, 'default' => null],
