@@ -1,7 +1,8 @@
 # CPD logbook (local_cpdlog)
 
-A continuing professional development (CPD) logbook for professional members, inside Moodle. Members log CPD hours by category against courses they are enrolled in,
-attach evidence, and submit entries for staff approval. Members see their own progress against
+A continuing professional development (CPD) logbook for professional members, inside Moodle.
+Members log CPD hours by category against courses they are enrolled in, attach evidence, and
+submit entries for staff approval. Members see their own progress against
 configurable targets; staff approve entries and report across all members.
 
 The logbook, evidence, approvals, progress, staff reports and data deletion are complete. One-way
@@ -261,10 +262,15 @@ To run the tests locally in a Moodle checkout with the plugin installed:
 
 ## License
 
-Copyright © Skin Cancer College Australasia. All rights reserved.
+Copyright © 2026 Vernon Spain.
 
-This is a proprietary plugin developed by Skin Cancer College Australasia for use with Moodle.
-It is NOT free software and is NOT released under the GNU General Public License. Unauthorised
-copying, distribution, modification, or use of this plugin, in whole or in part, via any medium,
-is strictly prohibited without the prior written permission of Skin Cancer College Australasia.
-The software is provided "as is", without warranty of any kind, express or implied.
+This program is free software: you can redistribute it and/or modify it under the terms of the
+GNU General Public License as published by the Free Software Foundation, either version 3 of the
+License, or (at your option) any later version.
+
+This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without
+even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
+General Public License for more details.
+
+You should have received a copy of the GNU General Public License along with this program (see
+`COPYING.txt`). If not, see <https://www.gnu.org/licenses/>.
