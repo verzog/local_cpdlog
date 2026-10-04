@@ -98,7 +98,8 @@ foreach (entry::get_records_select('userid = :userid', ['userid' => $USER->id], 
     $entryid = $entry->get('id');
     $status = get_string('entrystatus:' . $entry->get('status'), 'local_cpdlog');
     if (!$entry->is_moodle_owned()) {
-        $status .= ' ' . html_writer::span(get_string('fromimis', 'local_cpdlog'), 'badge bg-secondary');
+        $from = get_string('from' . $entry->get('source'), 'local_cpdlog');
+        $status .= ' ' . html_writer::span($from, 'badge bg-secondary');
     }
     if ($entry->get('status') === entry::STATUS_REJECTED) {
         $status .= html_writer::div(get_string('rejectionreasonis', 'local_cpdlog', s($entry->get('rejectionreason'))), 'small');

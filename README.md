@@ -18,6 +18,7 @@ agreed design decisions and the build plan.
 - [Using the logbook (members)](#using-the-logbook-members)
 - [Approving CPD (approvers)](#approving-cpd-approvers)
 - [Staff reports](#staff-reports)
+- [CPD from the image blog](#cpd-from-the-image-blog)
 - [Privacy and data deletion](#privacy-and-data-deletion)
 - [Development and testing](#development-and-testing)
 - [License](#license)
@@ -76,6 +77,9 @@ Open _Settings_:
 - **Maximum hours per entry** (default 40): the most hours one entry can claim.
 - **Allow CPD data deletion** (default off): switches on the deletion tool described in
   [Privacy and data deletion](#privacy-and-data-deletion). Leave it off until it is needed.
+- **Image blog** (only shown when the image blog plugin, `local_imageblog`, is installed): whether
+  to copy its CPD hours into the logbook (default on) and which category to file them under
+  (default Educational activities). See [CPD from the image blog](#cpd-from-the-image-blog).
 
 ### 2. Give staff their roles
 
@@ -188,7 +192,8 @@ download it, and files are always downloaded rather than opened in the browser.
 - **Reversed:** an approval made in error was withdrawn, with a reason. The entry stays in the
   logbook as reversed and no longer counts.
 
-Entries imported from iMIS will be shown read-only once the iMIS link is built.
+Entries copied from the image blog are shown read-only, marked _From the image blog_. Entries
+imported from iMIS will be shown the same way once the iMIS link is built.
 
 ## Approving CPD (approvers)
 
@@ -218,6 +223,27 @@ Both can be filtered by cohort, by any custom user profile field, and by period,
 or whether a target is met, and exported like any custom report. Staff with Report Builder editing
 rights can copy the starting reports or build new ones from these sources.
 
+## CPD from the image blog
+
+When the image blog plugin (`local_imageblog`) is installed, the CPD hours members earn on its
+clinical cases are copied into their logbooks every 15 minutes by the scheduled task _Copy CPD
+hours from the image blog_:
+
+- **What is copied:** hours for submitting a diagnosis, the best-diagnosis bonus and reading a
+  revealed outcome, one entry per case and reason.
+- **How it appears:** as an approved entry, so it counts towards targets straight away. It has no
+  course (the course column reads _Image blog_), its description names the case and the reason,
+  and it is read-only.
+- **Category:** set under _Settings > Category for image blog CPD_ (default Educational
+  activities). Changing it affects entries copied from then on.
+- **Past awards:** the first run copies every award made before the logbook was connected.
+- **Dates:** an entry is dated when the hours were awarded. An award dated outside every
+  reporting period is copied once a period covering its date is added.
+- **Changes:** the image blog stays in charge. If it changes an award's hours, the entry follows;
+  if it withdraws an award, the entry is reversed and stops counting; if the award comes back, so
+  does the entry.
+- **Switching off:** untick _Copy CPD hours from the image blog_. Entries already copied stay.
+
 ## Privacy and data deletion
 
 CPD records are retained compliance records and are never deleted automatically. The privacy
@@ -244,7 +270,8 @@ CPD data with the deletion tool:
 
 Each deletion is listed on the same page and logged as a _Member CPD data deleted_ event. Switching
 the setting off again stops new deletions and cancels any that are queued; switching it back on
-does not restart them.
+does not restart them. Image blog hours awarded before the deletion are not copied back; hours the
+member earns afterwards are.
 
 ## Development and testing
 
