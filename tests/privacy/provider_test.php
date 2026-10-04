@@ -46,6 +46,7 @@ final class provider_test extends \core_privacy\tests\provider_testcase
             'core_message',
             'local_cpdlog_category',
             'local_cpdlog_cohortchoice',
+            'local_cpdlog_deletion',
             'local_cpdlog_entry',
             'local_cpdlog_period',
             'local_cpdlog_target',
@@ -158,6 +159,44 @@ final class provider_test extends \core_privacy\tests\provider_testcase
         $this->assertCount(1, $actions);
         $this->assertEquals($entry->get('id'), $actions[0]->entryid);
         $this->assertObjectNotHasProperty('hours', $actions[0]);
+    }
+
+    /**
+     * The register of deletions is exported to the member it is about, and as an action to the staff member.
+     */
+    public function test_export_deletions(): void {
+        global $DB;
+        $this->resetAfterTest();
+        $member = $this->getDataGenerator()->create_user();
+        $staff = $this->getDataGenerator()->create_user();
+        $DB->insert_record('local_cpdlog_deletion', (object) [
+            'userid' => $member->id,
+            'requestedby' => $staff->id,
+            'status' => 'done',
+            'entriesdeleted' => 3,
+            'filesdeleted' => 2,
+            'timerequested' => time(),
+            'timecompleted' => time(),
+        ]);
+        $system = \context_system::instance();
+        $component = get_string('pluginname', 'local_cpdlog');
+
+        $this->assertEquals([$system->id], provider::get_contexts_for_userid($member->id)->get_contextids());
+        $this->assertEquals([$system->id], provider::get_contexts_for_userid($staff->id)->get_contextids());
+        $userlist = new userlist($system, 'local_cpdlog');
+        provider::get_users_in_context($userlist);
+        $this->assertEqualsCanonicalizing([$member->id, $staff->id], $userlist->get_userids());
+
+        $this->export_context_data_for_user($member->id, $system, 'local_cpdlog');
+        $deletions = writer::with_context($system)->get_data([$component, get_string('privacy:deletions', 'local_cpdlog')]);
+        $this->assertCount(1, $deletions->deletions);
+        $this->assertEquals(3, $deletions->deletions[0]->entriesdeleted);
+
+        writer::reset();
+        $this->export_context_data_for_user($staff->id, $system, 'local_cpdlog');
+        $actions = writer::with_context($system)->get_data([$component, get_string('privacy:staffactions', 'local_cpdlog')]);
+        $this->assertCount(1, $actions->actions);
+        $this->assertObjectHasProperty('deletionid', $actions->actions[0]);
     }
 
     /**

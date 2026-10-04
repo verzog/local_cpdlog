@@ -83,8 +83,22 @@ with `local/cpdlog:viewall`); staff with Report Builder editing rights can copy 
 CPD records are retained compliance records and are never deleted automatically. The privacy
 provider exports a member's CPD data on request, but deletion requests, expired-context clean-up
 and account deletion leave CPD records in place. Reject or hand-process CPD deletion requests
-under _Site administration > Users > Privacy and policies > Data requests_; staff delete CPD
-records manually.
+under _Site administration > Users > Privacy and policies > Data requests_, and delete a member's
+CPD data with the deletion tool:
+
+1. A site administrator switches on _Allow CPD data deletion_ in the CPD logbook settings, and
+   gives the `local/cpdlog:deletedata` capability (held by no role by default) to the staff who
+   handle deletion requests.
+2. Under _Site administration > Plugins > Local plugins > CPD logbook > Delete member CPD data_,
+   find the member by exact username or email address, check what will be removed, and type the
+   member's username to confirm.
+3. The deletion runs in the background within a few minutes. It removes all the member's entries,
+   evidence files and cohort choices, and clears their name from records where they acted as staff.
+   It cannot be undone; export the member's data first with the data privacy tool if a copy is
+   needed.
+
+Each deletion is listed on the same page and logged as a _Member CPD data deleted_ event. Switching
+the setting off again stops new deletions and cancels any that are queued.
 
 ## Setting up approvers
 
