@@ -40,4 +40,11 @@ $messageproviders = [
         ],
         'capability' => 'local/cpdlog:approve',
     ],
+    // Reminds a member, before a reporting period closes, of the targets they have not met.
+    'periodreminder' => [
+        'defaults' => [
+            'popup' => MESSAGE_PERMITTED + MESSAGE_DEFAULT_ENABLED,
+            'email' => MESSAGE_PERMITTED + MESSAGE_DEFAULT_ENABLED,
+        ],
+    ],
 ];

@@ -128,6 +128,20 @@ scoping", 24/09/2026). Where this file and the scoping document differ, this fil
       a deletion is queued, and each member's awards are copied under the same lock that queuing a
       deletion takes.
 
+19. **Calendar and reminders** (agreed 09/10/2026; phase 8, part 1).
+    - Each period has two site calendar events owned by the plugin (component `local_cpdlog`,
+      instance = period id, told apart by `uuid`): its first day ("opens") and last day ("closes").
+      The period persistent keeps them in step on create, update and delete; upgrade step
+      2026100900 adds them for existing periods. Only users with `local/cpdlog:viewown` see them,
+      and nobody can edit them in the calendar.
+    - A daily task reminds members with a target not yet met, at the days before the last day set
+      in _Reminder days_ (default 60, 14). On each run the smallest point already reached applies,
+      so a late start sends one reminder, not several. Members are counted as in decision 16.
+    - `local_cpdlog_reminder` logs each reminder (member, period, point) so none repeats. It is
+      not a CPD record: privacy deletion requests and the staff deletion tool remove it, while the
+      provider still leaves CPD entries in place (decision 12).
+    - Day counts use calendar days in the site timezone, so DST does not move a reminder.
+
 ## Schema notes
 
 - `local_cpdlog_target` holds the required hours; `local_cpdlog_target_cat` links the categories
@@ -176,7 +190,7 @@ standard, including the boilerplate sniff, with no `.phpcs.xml` overrides.
 | 5. Privacy and hardening | Full privacy provider, PHPUnit and Behat coverage; staff deletion tool | Done |
 | 6. iMIS push | On hold until the iMIS write path is proven in sccadev | |
 | 7. iMIS pull | Read-only import and conflict detection | |
-| 8. Calendar and events | Period dates in the calendar; configurable upcoming-events cache | |
+| 8. Calendar and events | Period dates in the calendar, reminders (decision 19); upcoming events | In progress |
 | Image blog | Copy CPD awarded by `local_imageblog` into the logbook | Done |
 
 ## Still open

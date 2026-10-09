@@ -18,6 +18,7 @@ agreed design decisions and the build plan.
 - [Using the logbook (members)](#using-the-logbook-members)
 - [Approving CPD (approvers)](#approving-cpd-approvers)
 - [Staff reports](#staff-reports)
+- [Calendar and reminders](#calendar-and-reminders)
 - [CPD from the image blog](#cpd-from-the-image-blog)
 - [Privacy and data deletion](#privacy-and-data-deletion)
 - [Development and testing](#development-and-testing)
@@ -75,6 +76,9 @@ stated otherwise. Do these once after installing, in this order.
 Open _Settings_:
 
 - **Maximum hours per entry** (default 40): the most hours one entry can claim.
+- **Send CPD reminders** (default on) and **Reminder days** (default 60,14): remind members who
+  are behind on their targets before a reporting period closes. See
+  [Calendar and reminders](#calendar-and-reminders).
 - **Allow CPD data deletion** (default off): switches on the deletion tool described in
   [Privacy and data deletion](#privacy-and-data-deletion). Leave it off until it is needed.
 - **Image blog** (only shown when the image blog plugin, `local_imageblog`, is installed): whether
@@ -113,7 +117,8 @@ Open _Reporting periods_ and add one for each CPD year or cycle, for example _20
 can only log activities dated inside an open period.
 
 Closing a period locks its entries and targets; it can be reopened. A period can be deleted only
-while nothing refers to it.
+while nothing refers to it. Each period's first and last days appear in the Moodle calendar
+automatically (see [Calendar and reminders](#calendar-and-reminders)).
 
 ### 5. Set targets for each period
 
@@ -135,10 +140,11 @@ targets apply to them. Check this page again whenever cohort membership changes.
 
 ### 7. Check notifications
 
-Members are notified when an entry is approved, rejected or reversed, and approvers when an entry
-is submitted. They are sent as a popup and by email by default. Site defaults are under _Site
-administration > General > Messaging > Notification settings_; each person can change their own
-in their notification preferences.
+Members are notified when an entry is approved, rejected or reversed, when a reporting period is
+about to close and they are behind on their targets, and approvers when an entry is submitted.
+They are sent as a popup and by email by default. Site defaults are under _Site administration >
+General > Messaging > Notification settings_; each person can change their own in their
+notification preferences.
 
 ### 8. Share the staff reports
 
@@ -222,6 +228,31 @@ Custom reports_:
 Both can be filtered by cohort, by any custom user profile field, and by period, category, status
 or whether a target is met, and exported like any custom report. Staff with Report Builder editing
 rights can copy the starting reports or build new ones from these sources.
+
+## Calendar and reminders
+
+**Calendar.** Every reporting period puts two site events in the Moodle calendar: _CPD reporting
+period … opens_ on its first day and _CPD reporting period … closes_ on its last day. They follow
+the period: renaming it or changing its dates moves them, and deleting it removes them. Nobody can
+edit or delete them in the calendar itself. They show to everyone who can view a CPD logbook.
+
+**Reminders.** The daily task _Send CPD reminders before a reporting period closes_ reminds
+members who have not yet met all their targets in an open period:
+
+- **When:** the set number of days before the period's last day, from _Settings > Reminder days_
+  (default 60 and 14 days). If reminders start late, only the latest one due is sent, not every
+  one at once.
+- **Who:** members as the staff reports count them, that is anyone who logged CPD in the period
+  or belongs to a cohort with targets in it, and only those with a target not yet met.
+  Suspended and deleted accounts are skipped. Each member gets each reminder at most once.
+- **What:** a notification (popup and email unless the member changes their preferences) naming
+  the period, its closing date, and each unmet target with the hours approved so far and any
+  waiting for review, with a link to the logbook.
+- **Switching off:** untick _Settings > Send CPD reminders_.
+
+A log of the reminders sent is kept so none is sent twice. It is part of the member's data for
+privacy requests and, unlike CPD entries, is removed when the member asks for their data to be
+deleted or when staff delete their CPD data.
 
 ## CPD from the image blog
 

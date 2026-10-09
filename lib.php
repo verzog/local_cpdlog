@@ -81,3 +81,14 @@ function local_cpdlog_pluginfile($course, $cm, $context, $filearea, $args, $forc
     }
     send_stored_file($file, 0, 0, true, $options);
 }
+
+/**
+ * Shows reporting period calendar events only to users who can view a CPD logbook.
+ *
+ * @param calendar_event $event The event.
+ * @param int $userid The user viewing the calendar.
+ * @return bool
+ */
+function local_cpdlog_core_calendar_is_event_visible(calendar_event $event, int $userid = 0): bool {
+    return has_capability('local/cpdlog:viewown', context_system::instance(), $userid ?: null);
+}

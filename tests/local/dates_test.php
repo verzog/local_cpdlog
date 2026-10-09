@@ -81,6 +81,19 @@ final class dates_test extends \advanced_testcase
     }
 
     /**
+     * Whole days are counted across a daylight-saving change, whatever the time of day.
+     */
+    public function test_days_between(): void {
+        $this->resetAfterTest();
+        $this->setTimezone('Australia/Sydney');
+
+        $this->assertSame(2, dates::days_between(self::sydney('2026-10-03 23:30'), self::sydney('2026-10-05 00:10')));
+        $this->assertSame(1, dates::days_between(self::sydney('2026-04-05 01:00'), self::sydney('2026-04-06 00:00')));
+        $this->assertSame(0, dates::days_between(self::sydney('2026-12-31 00:00'), self::sydney('2026-12-31 23:59')));
+        $this->assertSame(-14, dates::days_between(self::sydney('2026-12-31 09:00'), self::sydney('2026-12-17 09:00')));
+    }
+
+    /**
      * An explicit timezone overrides the site timezone.
      */
     public function test_explicit_timezone(): void {

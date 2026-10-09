@@ -303,4 +303,25 @@ final class data_deleter_test extends \advanced_testcase
         $this->assertSame(0, entry::count_records(['userid' => $this->member->id]));
         $this->assertSame(2, entry::count_records(['userid' => $this->other->id]));
     }
+
+    /**
+     * Deleting a member's CPD data also clears the reminders sent to them, and only theirs.
+     */
+    public function test_reminders_deleted(): void {
+        global $DB;
+        foreach ([$this->member, $this->other] as $user) {
+            $DB->insert_record(reminder::TABLE, (object) [
+                'userid' => $user->id,
+                'periodid' => $this->period->get('id'),
+                'daysbefore' => 14,
+                'timesent' => time(),
+            ]);
+        }
+        set_config('enabledeletion', 1, 'local_cpdlog');
+        data_deleter::queue((int) $this->member->id, (int) $this->admin->id);
+        $this->runAdhocTasks(delete_member_data::class);
+
+        $this->assertSame(0, $DB->count_records(reminder::TABLE, ['userid' => $this->member->id]));
+        $this->assertSame(1, $DB->count_records(reminder::TABLE, ['userid' => $this->other->id]));
+    }
 }

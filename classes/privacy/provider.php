@@ -102,6 +102,12 @@ class provider implements
             'timecompleted' => 'privacy:metadata:local_cpdlog_deletion:timecompleted',
         ], 'privacy:metadata:local_cpdlog_deletion');
 
+        $collection->add_database_table('local_cpdlog_reminder', [
+            'userid' => 'privacy:metadata:local_cpdlog_reminder:userid',
+            'periodid' => 'privacy:metadata:local_cpdlog_reminder:periodid',
+            'daysbefore' => 'privacy:metadata:local_cpdlog_reminder:daysbefore',
+            'timesent' => 'privacy:metadata:local_cpdlog_reminder:timesent',
+        ], 'privacy:metadata:local_cpdlog_reminder');
         $collection->add_subsystem_link('core_files', [], 'privacy:metadata:core_files');
         $collection->add_subsystem_link('core_message', [], 'privacy:metadata:core_message');
 
@@ -149,6 +155,7 @@ class provider implements
         foreach (['userid', 'requestedby'] as $field) {
             $userlist->add_from_sql($field, "SELECT {$field} FROM {local_cpdlog_deletion}", []);
         }
+        $userlist->add_from_sql('userid', 'SELECT userid FROM {local_cpdlog_reminder}', []);
         foreach (self::CONFIG_TABLES as $table) {
             $userlist->add_from_sql('usermodified', "SELECT usermodified FROM {{$table}} WHERE usermodified > 0", []);
         }
@@ -231,6 +238,25 @@ class provider implements
             $writer->export_data($subcontext, (object) ['deletions' => $deletions]);
         }
 
+        // Reminders sent to the member before a reporting period closed.
+        $reminders = [];
+        $sql = 'SELECT r.id, p.name AS period, r.daysbefore, r.timesent
+                  FROM {local_cpdlog_reminder} r
+                  JOIN {local_cpdlog_period} p ON p.id = r.periodid
+                 WHERE r.userid = :userid
+              ORDER BY r.timesent';
+        foreach ($DB->get_records_sql($sql, ['userid' => $userid]) as $reminder) {
+            $reminders[] = (object) [
+                'period' => format_string($reminder->period),
+                'daysbefore' => $reminder->daysbefore,
+                'timesent' => transform::datetime($reminder->timesent),
+            ];
+        }
+        if ($reminders) {
+            $subcontext = [$component, get_string('privacy:reminders', 'local_cpdlog')];
+            $writer->export_data($subcontext, (object) ['reminders' => $reminders]);
+        }
+
         // As staff, only the fact of each action is exported, not other members' CPD details.
         $actions = [];
         $sql = 'SELECT id, reviewedby, timereviewed, reversedby, timereversed, usermodified, timemodified
@@ -263,30 +289,46 @@ class provider implements
     }
 
     /**
-     * Does not delete: CPD entries are retained compliance records and staff delete them manually.
+     * Deletes only the reminder log: CPD entries are retained compliance records that staff delete
+     * manually (decision 12).
      *
      * @param \context $context The context.
      */
     public static function delete_data_for_all_users_in_context(\context $context) {
-        unset($context);
+        global $DB;
+        if ($context->contextlevel == CONTEXT_SYSTEM) {
+            $DB->delete_records('local_cpdlog_reminder');
+        }
     }
 
     /**
-     * Does not delete: CPD entries are retained compliance records and staff delete them manually.
+     * Deletes only the user's reminder log: CPD entries are retained compliance records that staff
+     * delete manually (decision 12).
      *
      * @param approved_contextlist $contextlist The approved contexts.
      */
     public static function delete_data_for_user(approved_contextlist $contextlist) {
-        unset($contextlist);
+        global $DB;
+        foreach ($contextlist->get_contexts() as $context) {
+            if ($context->contextlevel == CONTEXT_SYSTEM) {
+                $DB->delete_records('local_cpdlog_reminder', ['userid' => $contextlist->get_user()->id]);
+            }
+        }
     }
 
     /**
-     * Does not delete: CPD entries are retained compliance records and staff delete them manually.
+     * Deletes only the users' reminder log: CPD entries are retained compliance records that staff
+     * delete manually (decision 12).
      *
      * @param approved_userlist $userlist The approved users.
      */
     public static function delete_data_for_users(approved_userlist $userlist) {
-        unset($userlist);
+        global $DB;
+        if ($userlist->get_context()->contextlevel != CONTEXT_SYSTEM || !$userlist->get_userids()) {
+            return;
+        }
+        [$insql, $params] = $DB->get_in_or_equal($userlist->get_userids(), SQL_PARAMS_NAMED);
+        $DB->delete_records_select('local_cpdlog_reminder', "userid {$insql}", $params);
     }
 
     /**
@@ -308,6 +350,9 @@ class provider implements
         }
         $select = 'userid = :u1 OR requestedby = :u2';
         if ($DB->record_exists_select('local_cpdlog_deletion', $select, ['u1' => $userid, 'u2' => $userid])) {
+            return true;
+        }
+        if ($DB->record_exists('local_cpdlog_reminder', ['userid' => $userid])) {
             return true;
         }
         foreach (self::CONFIG_TABLES as $table) {

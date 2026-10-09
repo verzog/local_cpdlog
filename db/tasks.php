@@ -26,6 +26,15 @@ defined('MOODLE_INTERNAL') || die();
 
 $tasks = [
     [
+        'classname' => '\local_cpdlog\task\send_reminders',
+        'blocking' => 0,
+        'minute' => '17',
+        'hour' => '9',
+        'day' => '*',
+        'month' => '*',
+        'dayofweek' => '*',
+    ],
+    [
         'classname' => '\local_cpdlog\task\sync_imageblog',
         'blocking' => 0,
         'minute' => '*/15',
