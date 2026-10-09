@@ -111,5 +111,23 @@ function xmldb_local_cpdlog_upgrade($oldversion) {
         upgrade_plugin_savepoint(true, 2026100900, 'local', 'cpdlog');
     }
 
+    if ($oldversion < 2026101000) {
+        // Categories may accept external activities, which have a name and provider instead of a course.
+        $dbman = $DB->get_manager();
+        $table = new xmldb_table('local_cpdlog_category');
+        $field = new xmldb_field('allowexternal', XMLDB_TYPE_INTEGER, '1', null, XMLDB_NOTNULL, null, '0', 'evidencerequired');
+        if (!$dbman->field_exists($table, $field)) {
+            $dbman->add_field($table, $field);
+        }
+        $table = new xmldb_table('local_cpdlog_entry');
+        foreach (['activityname' => 'coursename', 'provider' => 'activityname'] as $name => $after) {
+            $field = new xmldb_field($name, XMLDB_TYPE_CHAR, '255', null, null, null, null, $after);
+            if (!$dbman->field_exists($table, $field)) {
+                $dbman->add_field($table, $field);
+            }
+        }
+        upgrade_plugin_savepoint(true, 2026101000, 'local', 'cpdlog');
+    }
+
     return true;
 }

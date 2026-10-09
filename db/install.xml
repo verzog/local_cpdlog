@@ -12,6 +12,7 @@
         <FIELD NAME="sortorder" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
         <FIELD NAME="enabled" TYPE="int" LENGTH="1" NOTNULL="true" DEFAULT="1" SEQUENCE="false"/>
         <FIELD NAME="evidencerequired" TYPE="int" LENGTH="1" NOTNULL="true" DEFAULT="0" SEQUENCE="false" COMMENT="Whether submission requires at least one evidence file."/>
+        <FIELD NAME="allowexternal" TYPE="int" LENGTH="1" NOTNULL="true" DEFAULT="0" SEQUENCE="false" COMMENT="Whether members may log activities outside Moodle (external) in this category."/>
         <FIELD NAME="timecreated" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
         <FIELD NAME="timemodified" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
         <FIELD NAME="usermodified" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
@@ -106,6 +107,8 @@
         <FIELD NAME="periodid" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false"/>
         <FIELD NAME="courseid" TYPE="int" LENGTH="10" NOTNULL="false" SEQUENCE="false" COMMENT="Null for iMIS-origin rows. Kept if the course is deleted."/>
         <FIELD NAME="coursename" TYPE="char" LENGTH="255" NOTNULL="false" SEQUENCE="false" COMMENT="Course name when logged, so the entry stays readable if the course is deleted."/>
+        <FIELD NAME="activityname" TYPE="char" LENGTH="255" NOTNULL="false" SEQUENCE="false" COMMENT="For an external activity (no course): its name."/>
+        <FIELD NAME="provider" TYPE="char" LENGTH="255" NOTNULL="false" SEQUENCE="false" COMMENT="For an external activity: who provided it."/>
         <FIELD NAME="hours" TYPE="number" LENGTH="6" NOTNULL="true" SEQUENCE="false" DECIMALS="2"/>
         <FIELD NAME="activitydate" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false"/>
         <FIELD NAME="description" TYPE="text" NOTNULL="false" SEQUENCE="false"/>

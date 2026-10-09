@@ -58,6 +58,7 @@ $table->head = [
     get_string('name'),
     get_string('shortname', 'local_cpdlog'),
     get_string('evidencerequired', 'local_cpdlog'),
+    get_string('allowexternal', 'local_cpdlog'),
     get_string('status'),
     get_string('actions'),
 ];
@@ -89,6 +90,7 @@ foreach (array_values($categories) as $index => $category) {
         format_string($category->get('name')),
         s($category->get('shortname')),
         $category->get('evidencerequired') ? get_string('yes') : get_string('no'),
+        $category->get('allowexternal') ? get_string('yes') : get_string('no'),
         $category->get('enabled') ? get_string('enabled', 'local_cpdlog') : get_string('disabled', 'local_cpdlog'),
         implode(' ', $actions),
     ];

@@ -61,6 +61,10 @@ class category extends \core\persistent
                 'type' => PARAM_BOOL,
                 'default' => false,
             ],
+            'allowexternal' => [
+                'type' => PARAM_BOOL,
+                'default' => false,
+            ],
         ];
     }
 

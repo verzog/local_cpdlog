@@ -73,6 +73,9 @@ class entry extends \core\persistent
     /** @var string[] Every source. */
     const SOURCES = [self::SOURCE_MOODLE, self::SOURCE_IMIS, self::SOURCE_IMAGEBLOG];
 
+    /** @var int The course choice in the entry form for an activity outside Moodle. */
+    const EXTERNAL_COURSE = -1;
+
     /** @var float Largest value the hours column holds. */
     const MAX_HOURS = 9999.99;
 
@@ -88,6 +91,8 @@ class entry extends \core\persistent
             'periodid' => ['type' => PARAM_INT],
             'courseid' => ['type' => PARAM_INT, 'null' => NULL_ALLOWED, 'default' => null],
             'coursename' => ['type' => PARAM_TEXT, 'null' => NULL_ALLOWED, 'default' => null],
+            'activityname' => ['type' => PARAM_TEXT, 'null' => NULL_ALLOWED, 'default' => null],
+            'provider' => ['type' => PARAM_TEXT, 'null' => NULL_ALLOWED, 'default' => null],
             'hours' => ['type' => PARAM_FLOAT],
             'activitydate' => ['type' => PARAM_INT],
             'description' => ['type' => PARAM_RAW, 'null' => NULL_ALLOWED, 'default' => ''],
@@ -148,6 +153,15 @@ class entry extends \core\persistent
      */
     protected function validate_periodid($value) {
         return period::record_exists($value) ? true : new lang_string('invalidrecord', 'error', period::TABLE);
+    }
+
+    /**
+     * Whether the entry is for an activity outside Moodle: no course, but an activity name.
+     *
+     * @return bool
+     */
+    public function is_external(): bool {
+        return !$this->get('courseid') && (string) $this->get('activityname') !== '';
     }
 
     /**

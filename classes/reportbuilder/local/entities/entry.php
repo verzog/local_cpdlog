@@ -118,6 +118,18 @@ class entry extends base
                 return $name === null ? '' : format_string($name, true, ['context' => \context_system::instance()]);
             });
 
+        // External activities have a name and provider instead of a course.
+        foreach (['activityname', 'provider'] as $field) {
+            $columns[] = (new column($field, new lang_string($field, 'local_cpdlog'), $this->get_entity_name()))
+                ->add_joins($this->get_joins())
+                ->set_type(column::TYPE_TEXT)
+                ->add_field("{$alias}.{$field}")
+                ->set_is_sortable(true)
+                ->add_callback(static function (?string $value): string {
+                    return $value === null ? '' : format_string($value, true, ['context' => \context_system::instance()]);
+                });
+        }
+
         $columns[] = (new column('description', new lang_string('description'), $this->get_entity_name()))
             ->add_joins($this->get_joins())
             ->set_type(column::TYPE_LONGTEXT)
@@ -212,6 +224,17 @@ class entry extends base
             "{$alias}.coursename"
         ))
             ->add_joins($this->get_joins());
+
+        foreach (['activityname', 'provider'] as $field) {
+            $filters[] = (new filter(
+                text::class,
+                $field,
+                new lang_string($field, 'local_cpdlog'),
+                $this->get_entity_name(),
+                "{$alias}.{$field}"
+            ))
+                ->add_joins($this->get_joins());
+        }
 
         $filters[] = (new filter(
             date::class,

@@ -465,4 +465,129 @@ final class entry_manager_test extends \advanced_testcase
 
         $this->assertSame(0, entry_manager::count_evidence($entry));
     }
+
+    /**
+     * Allows external activities in the Educational activities category and returns its id.
+     *
+     * @return int
+     */
+    private function allow_external(): int {
+        $category = category::get_record(['shortname' => 'EA']);
+        $category->set('allowexternal', true);
+        $category->update();
+        return (int) $category->get('id');
+    }
+
+    /**
+     * Returns details of an external activity.
+     *
+     * @param array $overrides Fields to change.
+     * @return \stdClass
+     */
+    private function external_details(array $overrides = []): \stdClass {
+        return $this->details($overrides + [
+            'courseid' => entry::EXTERNAL_COURSE,
+            'activityname' => 'Dermoscopy conference',
+            'provider' => 'Australasian College of Dermatologists',
+        ]);
+    }
+
+    /**
+     * An external activity needs a category that accepts it, a name and a provider.
+     */
+    public function test_validate_external(): void {
+        $member = (int) $this->member->id;
+        $this->assertArrayHasKey('courseid', entry_manager::validate($member, $this->external_details()));
+
+        $this->allow_external();
+        $this->assertSame([], entry_manager::validate($member, $this->external_details()));
+        $errors = entry_manager::validate($member, $this->external_details(['activityname' => ' ', 'provider' => '']));
+        $this->assertArrayHasKey('activityname', $errors);
+        $this->assertArrayHasKey('provider', $errors);
+        $errors = entry_manager::validate($member, $this->external_details(['provider' => str_repeat('x', 256)]));
+        $this->assertArrayHasKey('provider', $errors);
+
+        // Another category that does not accept external activities still refuses them.
+        $rp = category::get_record(['shortname' => 'RP']);
+        $errors = entry_manager::validate($member, $this->external_details(['categoryid' => $rp->get('id')]));
+        $this->assertArrayHasKey('courseid', $errors);
+    }
+
+    /**
+     * An external entry is saved without a course, shown with its name and provider, and switching
+     * it to a course clears them.
+     */
+    public function test_save_external(): void {
+        $this->allow_external();
+        $entry = entry_manager::save_draft((int) $this->member->id, $this->external_details());
+
+        $this->assertTrue($entry->is_external());
+        $this->assertNull($entry->get('courseid'));
+        $this->assertNull($entry->get('coursename'));
+        $this->assertSame('Dermoscopy conference', $entry->get('activityname'));
+        $this->assertSame(
+            'Dermoscopy conference, Australasian College of Dermatologists (external)',
+            display::course($entry)
+        );
+
+        $entry = entry_manager::save_draft((int) $this->member->id, $this->details(), $entry);
+        $this->assertFalse($entry->is_external());
+        $this->assertNull($entry->get('activityname'));
+        $this->assertNull($entry->get('provider'));
+        $this->assertSame('Enrolled course', display::course($entry));
+    }
+
+    /**
+     * An external entry stays valid in its category after the category stops accepting new ones.
+     */
+    public function test_kept_external_stays_valid(): void {
+        $categoryid = $this->allow_external();
+        $entry = entry_manager::save_draft((int) $this->member->id, $this->external_details());
+        $category = new category($categoryid);
+        $category->set('allowexternal', false);
+        $category->update();
+
+        $this->assertSame([], entry_manager::validate((int) $this->member->id, $entry->to_record(), $entry));
+        $this->assertArrayHasKey('courseid', entry_manager::validate((int) $this->member->id, $this->external_details()));
+    }
+
+    /**
+     * External entries always need evidence to be submitted, even where the category does not require it.
+     */
+    public function test_external_requires_evidence(): void {
+        $this->setUser($this->member);
+        $this->allow_external();
+        $entry = entry_manager::save_draft((int) $this->member->id, $this->external_details());
+        $this->assertTrue(entry_manager::is_missing_evidence($entry));
+        try {
+            entry_manager::submit($entry, (int) $this->member->id);
+            $this->fail('An external entry was submitted without evidence.');
+        } catch (\moodle_exception $e) {
+            $this->assertSame('error:evidencerequired', $e->errorcode);
+        }
+
+        $form = new \local_cpdlog\form\entry_form(null, ['userid' => (int) $this->member->id, 'entry' => null]);
+        $data = (array) $this->external_details();
+        $errors = $form->validation($data + ['saveandsubmit' => 1], []);
+        $this->assertSame(get_string('error:evidenceexternal', 'local_cpdlog'), $errors['evidence_filemanager']);
+        $withfile = $data + ['saveandsubmit' => 1, 'evidence_filemanager' => $this->create_draft_file('certificate.pdf')];
+        $this->assertSame([], $form->validation($withfile, []));
+
+        entry_manager::save_evidence($entry, (int) $this->member->id, $this->create_draft_file('certificate.pdf'));
+        entry_manager::submit($entry, (int) $this->member->id);
+        $this->assertSame(entry::STATUS_SUBMITTED, $entry->get('status'));
+    }
+
+    /**
+     * Two external entries with the same name on the same day are flagged as likely duplicates.
+     */
+    public function test_external_duplicates(): void {
+        $this->allow_external();
+        $first = entry_manager::save_draft((int) $this->member->id, $this->external_details());
+        $this->assertSame(0, entry_manager::count_duplicates($first));
+        $second = entry_manager::save_draft((int) $this->member->id, $this->external_details());
+        $this->assertSame(1, entry_manager::count_duplicates($second));
+        $other = entry_manager::save_draft((int) $this->member->id, $this->external_details(['activityname' => 'Other']));
+        $this->assertSame(0, entry_manager::count_duplicates($other));
+    }
 }

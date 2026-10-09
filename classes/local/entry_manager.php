@@ -141,10 +141,25 @@ final class entry_manager
             $errors['categoryid'] = get_string('error:entrycategory', 'local_cpdlog');
         }
 
-        $courseid = (int) ($data->courseid ?? 0);
-        $keptcourse = $existing && (int) $existing->get('courseid') === $courseid;
-        if (!$courseid || (!$keptcourse && !self::can_log_course($userid, $courseid))) {
-            $errors['courseid'] = get_string('error:entrycourse', 'local_cpdlog');
+        if (self::is_external_data($data)) {
+            // External activities need a category that accepts them, or the one the entry already has.
+            if ($category && !$category->get('allowexternal') && !($keptcategory && $existing->is_external())) {
+                $errors['courseid'] = get_string('error:entryexternal', 'local_cpdlog');
+            }
+            foreach (['activityname', 'provider'] as $field) {
+                $value = trim((string) ($data->$field ?? ''));
+                if ($value === '') {
+                    $errors[$field] = get_string('required');
+                } else if (\core_text::strlen($value) > 255) {
+                    $errors[$field] = get_string('maximumchars', '', 255);
+                }
+            }
+        } else {
+            $courseid = (int) ($data->courseid ?? 0);
+            $keptcourse = $existing && (int) $existing->get('courseid') === $courseid;
+            if ($courseid <= 0 || (!$keptcourse && !self::can_log_course($userid, $courseid))) {
+                $errors['courseid'] = get_string('error:entrycourse', 'local_cpdlog');
+            }
         }
 
         $period = self::find_period((int) ($data->activitydate ?? 0));
@@ -285,14 +300,44 @@ final class entry_manager
     }
 
     /**
-     * Whether the entry's category requires evidence and the entry has none yet.
+     * Whether the entry needs evidence before it is submitted (see needs_evidence()) and has none yet.
      *
      * @param entry $entry The entry.
      * @return bool
      */
     public static function is_missing_evidence(entry $entry): bool {
-        $category = category::get_record(['id' => $entry->get('categoryid')]);
-        return $category && $category->get('evidencerequired') && self::count_evidence($entry) === 0;
+        return self::needs_evidence((int) $entry->get('categoryid'), $entry->is_external())
+            && self::count_evidence($entry) === 0;
+    }
+
+    /**
+     * Whether an entry must have evidence before it is submitted: always for an external activity,
+     * and otherwise when its category requires it.
+     *
+     * @param int $categoryid The entry's category.
+     * @param bool $external Whether the entry is for an external activity.
+     * @return bool
+     */
+    public static function needs_evidence(int $categoryid, bool $external): bool {
+        if ($external) {
+            return true;
+        }
+        $category = category::get_record(['id' => $categoryid]);
+        return $category && $category->get('evidencerequired');
+    }
+
+    /**
+     * Whether submitted entry details describe an external activity rather than a course.
+     *
+     * The entry form sends the course choice entry::EXTERNAL_COURSE; a stored external entry has no
+     * course but an activity name.
+     *
+     * @param \stdClass $data The details.
+     * @return bool
+     */
+    public static function is_external_data(\stdClass $data): bool {
+        $courseid = (int) ($data->courseid ?? 0);
+        return $courseid === entry::EXTERNAL_COURSE || ($courseid === 0 && trim((string) ($data->activityname ?? '')) !== '');
     }
 
     /**
@@ -314,13 +359,16 @@ final class entry_manager
         }
 
         $activitydate = (int) $data->activitydate;
-        $courseid = (int) $data->courseid;
+        $external = self::is_external_data($data);
+        $courseid = $external ? null : (int) $data->courseid;
         $record = (object) [
             'userid' => $userid,
             'categoryid' => (int) $data->categoryid,
             'periodid' => self::find_period($activitydate)->get('id'),
             'courseid' => $courseid,
-            'coursename' => $DB->get_field('course', 'fullname', ['id' => $courseid]) ?: null,
+            'coursename' => $external ? null : ($DB->get_field('course', 'fullname', ['id' => $courseid]) ?: null),
+            'activityname' => $external ? trim($data->activityname) : null,
+            'provider' => $external ? trim($data->provider) : null,
             'hours' => round((float) $data->hours, 2),
             'activitydate' => $activitydate,
             'description' => $data->description ?? '',
@@ -329,7 +377,7 @@ final class entry_manager
             'source' => entry::SOURCE_MOODLE,
         ];
         // A course deleted since the entry was logged keeps its snapshot name.
-        if ($entry && $record->coursename === null) {
+        if ($entry && !$external && $record->coursename === null) {
             $record->coursename = $entry->get('coursename');
         }
 
@@ -404,20 +452,27 @@ final class entry_manager
     }
 
     /**
-     * Counts the member's other entries for the same course on the same day, ignoring reversed ones.
+     * Counts the member's other entries for the same course (or external activity) on the same day, ignoring reversed ones.
      *
      * @param entry $entry The entry.
      * @return int
      */
     public static function count_duplicates(entry $entry): int {
-        $select = 'userid = :userid AND courseid = :courseid AND activitydate = :activitydate
-                   AND id <> :id AND status <> :reversed';
-        return entry::count_records_select($select, [
+        $params = [
             'userid' => $entry->get('userid'),
-            'courseid' => $entry->get('courseid'),
             'activitydate' => $entry->get('activitydate'),
             'id' => $entry->get('id'),
             'reversed' => entry::STATUS_REVERSED,
-        ]);
+        ];
+        // An external activity is matched on its name, as it has no course.
+        if ($entry->is_external()) {
+            $match = 'courseid IS NULL AND activityname = :activityname';
+            $params['activityname'] = $entry->get('activityname');
+        } else {
+            $match = 'courseid = :courseid';
+            $params['courseid'] = $entry->get('courseid');
+        }
+        $select = "userid = :userid AND {$match} AND activitydate = :activitydate AND id <> :id AND status <> :reversed";
+        return entry::count_records_select($select, $params);
     }
 }

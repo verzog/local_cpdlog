@@ -50,9 +50,11 @@ class entry_form extends \moodleform
 
         // Disabled categories stay listed only for the entry that already uses one.
         $categories = [];
+        $externalallowed = $entry && $entry->is_external();
         foreach (category::get_records([], 'sortorder') as $category) {
             if ($category->get('enabled') || ($entry && (int) $entry->get('categoryid') === (int) $category->get('id'))) {
                 $categories[$category->get('id')] = format_string($category->get('name'));
+                $externalallowed = $externalallowed || ($category->get('enabled') && $category->get('allowexternal'));
             }
         }
         $mform->addElement('select', 'categoryid', get_string('category'), ['' => get_string('choosedots')] + $categories);
@@ -64,10 +66,24 @@ class entry_form extends \moodleform
         if ($entry && $entry->get('courseid') && !isset($courses[$entry->get('courseid')])) {
             $courses[$entry->get('courseid')] = format_string((string) $entry->get('coursename'));
         }
+        // An activity outside Moodle can be logged when some category accepts external activities.
+        if ($externalallowed) {
+            $courses[entry::EXTERNAL_COURSE] = get_string('externalactivity', 'local_cpdlog');
+        }
         $mform->addElement('select', 'courseid', get_string('course'), ['' => get_string('choosedots')] + $courses);
         $mform->addRule('courseid', get_string('required'), 'required', null, 'client');
         $mform->setType('courseid', PARAM_INT);
-        $mform->addHelpButton('courseid', 'entrycourse', 'local_cpdlog');
+        $mform->addHelpButton('courseid', $externalallowed ? 'entrycourseexternal' : 'entrycourse', 'local_cpdlog');
+
+        if ($externalallowed) {
+            foreach (['activityname', 'provider'] as $field) {
+                $mform->addElement('text', $field, get_string($field, 'local_cpdlog'), ['size' => 50]);
+                $mform->setType($field, PARAM_TEXT);
+                $mform->addRule($field, get_string('maximumchars', '', 255), 'maxlength', 255, 'client');
+                $mform->hideIf($field, 'courseid', 'neq', (string) entry::EXTERNAL_COURSE);
+            }
+            $mform->addHelpButton('activityname', 'activityname', 'local_cpdlog');
+        }
 
         $mform->addElement('date_selector', 'activitydate', get_string('activitydate', 'local_cpdlog'), [
             'timezone' => \core_date::get_server_timezone(),
@@ -120,13 +136,17 @@ class entry_form extends \moodleform
         $errors = parent::validation($data, $files);
         $errors += entry_manager::validate((int) $this->_customdata['userid'], (object) $data, $this->_customdata['entry']);
 
-        // Submitting straight away needs evidence for categories that require it; drafts do not. The
-        // draft area holds the files as they will be saved, including ones already on the entry.
+        // Submitting straight away needs evidence for external activities and for categories that
+        // require it; drafts do not. The draft area holds the files as they will be saved, including
+        // ones already on the entry.
         if (!empty($data['saveandsubmit']) && empty($errors['categoryid'])) {
-            $category = category::get_record(['id' => (int) $data['categoryid']]);
+            $external = entry_manager::is_external_data((object) $data);
             $draftfiles = entry_manager::count_draft_files((int) ($data['evidence_filemanager'] ?? 0));
-            if ($category && $category->get('evidencerequired') && !$draftfiles) {
-                $errors['evidence_filemanager'] = get_string('error:evidencerequired', 'local_cpdlog');
+            if (entry_manager::needs_evidence((int) $data['categoryid'], $external) && !$draftfiles) {
+                $errors['evidence_filemanager'] = get_string(
+                    $external ? 'error:evidenceexternal' : 'error:evidencerequired',
+                    'local_cpdlog'
+                );
             }
         }
         return $errors;

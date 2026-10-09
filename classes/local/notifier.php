@@ -139,7 +139,7 @@ final class notifier
             $dateformat = get_string('strftimedatefull', 'local_cpdlog');
             $values = [
                 'date' => userdate($entry->get('activitydate'), $dateformat, \core_date::get_server_timezone(), false),
-                'course' => format_string((string) $entry->get('coursename'), true, ['escape' => false]),
+                'course' => display::course($entry, false),
                 'hours' => format_float($entry->get('hours'), 2),
             ] + $extra;
             // The subject is plain text; the body is HTML, so its values are escaped.

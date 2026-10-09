@@ -50,6 +50,9 @@ class category_form extends \core\form\persistent
         $mform->addElement('advcheckbox', 'evidencerequired', get_string('evidencerequired', 'local_cpdlog'));
         $mform->addHelpButton('evidencerequired', 'evidencerequired', 'local_cpdlog');
 
+        $mform->addElement('advcheckbox', 'allowexternal', get_string('allowexternal', 'local_cpdlog'));
+        $mform->addHelpButton('allowexternal', 'allowexternal', 'local_cpdlog');
+
         $this->add_action_buttons();
     }
 }
