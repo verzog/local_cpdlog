@@ -25,6 +25,7 @@
 namespace local_cpdlog\local;
 
 use local_cpdlog\persistent\entry;
+use local_cpdlog\persistent\period;
 
 /**
  * Sends CPD logbook notifications.
@@ -61,6 +62,65 @@ final class notifier
         $reasonfield = $entry->get('status') === entry::STATUS_REVERSED ? 'reversalreason' : 'rejectionreason';
         $extra = ['reason' => (string) $entry->get($reasonfield)];
         self::send('entryoutcome', $member, 'message:entry' . $entry->get('status'), $entry, $extra);
+    }
+
+    /**
+     * Reminds a member, before a reporting period closes, of the targets they have not yet met.
+     *
+     * @param \stdClass $member The member, with id, lang and firstname.
+     * @param period $period The period.
+     * @param \stdClass[] $unmet Their unmet targets, as returned by progress::get_progress().
+     */
+    public static function period_reminder(\stdClass $member, period $period, array $unmet): void {
+        $oldlang = force_current_language($member->lang ?? '');
+        try {
+            $values = (object) [
+                'period' => format_string($period->get('name'), true, ['escape' => false]),
+                'date' => userdate(
+                    $period->get_lastday(),
+                    get_string('strftimedatefull', 'local_cpdlog'),
+                    \core_date::get_server_timezone(),
+                    false
+                ),
+            ];
+            $items = '';
+            foreach ($unmet as $row) {
+                $a = (object) [
+                    'name' => s(format_string($row->target->get('name'), true, ['escape' => false])),
+                    'approved' => format_float($row->approved, 2),
+                    'required' => format_float($row->required, 2),
+                    'pending' => format_float($row->pending, 2),
+                ];
+                $identifier = $row->pending > 0 ? 'message:reminder:targetpending' : 'message:reminder:target';
+                $line = get_string($identifier, 'local_cpdlog', $a);
+                $items .= \html_writer::tag('li', $line);
+            }
+            $subject = get_string('message:reminder:subject', 'local_cpdlog', $values);
+            $body = get_string('message:reminder:body', 'local_cpdlog', (object) [
+                'period' => s($values->period),
+                'date' => s($values->date),
+                'targets' => \html_writer::tag('ul', $items),
+            ]);
+            $urlname = get_string('mylogbook', 'local_cpdlog');
+        } finally {
+            force_current_language($oldlang);
+        }
+
+        $url = new \moodle_url('/local/cpdlog/index.php', ['periodid' => $period->get('id')]);
+        $message = new \core\message\message();
+        $message->component = 'local_cpdlog';
+        $message->name = 'periodreminder';
+        $message->userfrom = \core_user::get_noreply_user();
+        $message->userto = (int) $member->id;
+        $message->subject = $subject;
+        $message->fullmessage = html_to_text($body);
+        $message->fullmessageformat = FORMAT_PLAIN;
+        $message->fullmessagehtml = $body;
+        $message->smallmessage = $subject;
+        $message->notification = 1;
+        $message->contexturl = $url->out(false);
+        $message->contexturlname = $urlname;
+        message_send($message);
     }
 
     /**

@@ -30,7 +30,8 @@ use core\lang_string;
  * A CPD reporting period, such as a calendar year or a triennium.
  *
  * The end date is exclusive: it is the start of the day after the last day, so the last day is
- * included when entries are compared with `activitydate < enddate`.
+ * included when entries are compared with `activitydate < enddate`. The first and last days are
+ * kept in the Moodle calendar (local_cpdlog\local\calendar).
  */
 class period extends \core\persistent
 {
@@ -116,6 +117,35 @@ class period extends \core\persistent
      */
     public function get_lastday(): int {
         return \local_cpdlog\local\dates::previous_day_start((int) $this->get('enddate'));
+    }
+
+    /**
+     * Adds the new period's dates to the calendar.
+     */
+    protected function after_create() {
+        \local_cpdlog\local\calendar::sync_period($this);
+    }
+
+    /**
+     * Moves the period's calendar events to its new dates and name.
+     *
+     * @param bool $result Whether the update succeeded.
+     */
+    protected function after_update($result) {
+        if ($result) {
+            \local_cpdlog\local\calendar::sync_period($this);
+        }
+    }
+
+    /**
+     * Removes the deleted period's calendar events.
+     *
+     * @param bool $result Whether the delete succeeded.
+     */
+    protected function after_delete($result) {
+        if ($result) {
+            \local_cpdlog\local\calendar::remove_period((int) $this->get('id'));
+        }
     }
 
     /**

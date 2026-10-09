@@ -89,5 +89,27 @@ function xmldb_local_cpdlog_upgrade($oldversion) {
         upgrade_plugin_savepoint(true, 2026100403, 'local', 'cpdlog');
     }
 
+    if ($oldversion < 2026100900) {
+        // The log of reminders sent before a reporting period closes.
+        $dbman = $DB->get_manager();
+        $table = new xmldb_table('local_cpdlog_reminder');
+        $table->add_field('id', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, XMLDB_SEQUENCE, null);
+        $table->add_field('userid', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, null);
+        $table->add_field('periodid', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, null);
+        $table->add_field('daysbefore', XMLDB_TYPE_INTEGER, '5', null, XMLDB_NOTNULL, null, null);
+        $table->add_field('timesent', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        $table->add_key('primary', XMLDB_KEY_PRIMARY, ['id']);
+        $table->add_key('userid', XMLDB_KEY_FOREIGN, ['userid'], 'user', ['id']);
+        $table->add_key('periodid', XMLDB_KEY_FOREIGN, ['periodid'], 'local_cpdlog_period', ['id']);
+        $table->add_index('userid-periodid-daysbefore', XMLDB_INDEX_UNIQUE, ['userid', 'periodid', 'daysbefore']);
+        if (!$dbman->table_exists($table)) {
+            $dbman->create_table($table);
+        }
+
+        // Existing reporting periods get their calendar events.
+        \local_cpdlog\local\calendar::sync_all();
+        upgrade_plugin_savepoint(true, 2026100900, 'local', 'cpdlog');
+    }
+
     return true;
 }

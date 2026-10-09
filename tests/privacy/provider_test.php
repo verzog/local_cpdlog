@@ -53,6 +53,7 @@ final class provider_test extends \core_privacy\tests\provider_testcase
             'local_cpdlog_deletion',
             'local_cpdlog_entry',
             'local_cpdlog_period',
+            'local_cpdlog_reminder',
             'local_cpdlog_target',
         ], $names);
     }
@@ -240,5 +241,44 @@ final class provider_test extends \core_privacy\tests\provider_testcase
         provider::delete_data_for_users(new approved_userlist($system, 'local_cpdlog', [$member->id, $staff->id]));
 
         $this->assertSame(1, $DB->count_records(entry::TABLE, ['userid' => $member->id]));
+    }
+
+    /**
+     * The reminder log is declared, exported, listed and, unlike CPD records, deleted on request.
+     */
+    public function test_reminders(): void {
+        global $DB;
+        $this->resetAfterTest();
+        [$member, $staff, $entry] = $this->create_reviewed_entry();
+        $other = $this->getDataGenerator()->create_user();
+        foreach ([$member, $other] as $user) {
+            $DB->insert_record('local_cpdlog_reminder', (object) [
+                'userid' => $user->id,
+                'periodid' => $entry->get('periodid'),
+                'daysbefore' => 14,
+                'timesent' => time(),
+            ]);
+        }
+        $system = \context_system::instance();
+        $component = get_string('pluginname', 'local_cpdlog');
+
+        $this->assertEquals([$system->id], provider::get_contexts_for_userid($other->id)->get_contextids());
+        $userlist = new userlist($system, 'local_cpdlog');
+        provider::get_users_in_context($userlist);
+        $this->assertContainsEquals($other->id, $userlist->get_userids());
+
+        $this->export_context_data_for_user($member->id, $system, 'local_cpdlog');
+        $reminders = writer::with_context($system)->get_data([$component, get_string('privacy:reminders', 'local_cpdlog')]);
+        $this->assertCount(1, $reminders->reminders);
+        $this->assertSame('2026', $reminders->reminders[0]->period);
+        $this->assertEquals(14, $reminders->reminders[0]->daysbefore);
+
+        provider::delete_data_for_user(new approved_contextlist($member, 'local_cpdlog', [$system->id]));
+        $this->assertSame(0, $DB->count_records('local_cpdlog_reminder', ['userid' => $member->id]));
+        $this->assertSame(1, $DB->count_records('local_cpdlog_reminder', ['userid' => $other->id]));
+        $this->assertSame(1, $DB->count_records(entry::TABLE, ['userid' => $member->id]));
+
+        provider::delete_data_for_users(new approved_userlist($system, 'local_cpdlog', [$other->id]));
+        $this->assertSame(0, $DB->count_records('local_cpdlog_reminder'));
     }
 }

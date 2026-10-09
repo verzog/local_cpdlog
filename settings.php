@@ -46,6 +46,22 @@ if ($hassiteconfig) {
         $enabledeletion->set_updatedcallback([\local_cpdlog\local\data_deleter::class, 'setting_updated']);
         $settings->add($enabledeletion);
 
+        // Reminders before a reporting period closes, to members with targets not yet met.
+        $settings->add(new admin_setting_configcheckbox(
+            'local_cpdlog/remindersenabled',
+            new lang_string('remindersenabled', 'local_cpdlog'),
+            new lang_string('remindersenabled_desc', 'local_cpdlog'),
+            1
+        ));
+        $reminderdays = new admin_setting_configtext(
+            'local_cpdlog/reminderdays',
+            new lang_string('reminderdays', 'local_cpdlog'),
+            new lang_string('reminderdays_desc', 'local_cpdlog'),
+            '60,14',
+            '/^\s*\d+(\s*,\s*\d+)*\s*$/'
+        );
+        $settings->add($reminderdays);
+
         // CPD hours from the image blog appear only when that plugin is installed.
         if (\local_cpdlog\local\imageblog_sync::is_installed()) {
             $settings->add(new admin_setting_heading(

@@ -55,6 +55,25 @@ final class dates
     }
 
     /**
+     * Returns how many calendar days lie between the days containing two timestamps.
+     *
+     * Counts whole days in the given timezone, so a daylight-saving change in between does not
+     * shorten or lengthen the count.
+     *
+     * @param int $from Any moment in the first day.
+     * @param int $to Any moment in the second day.
+     * @param \DateTimeZone|null $timezone Timezone of the days; the site timezone if null.
+     * @return int Days from the first day to the second; negative if the second is earlier.
+     */
+    public static function days_between(int $from, int $to, ?\DateTimeZone $timezone = null): int {
+        $timezone = $timezone ?? \core_date::get_server_timezone_object();
+        $start = (new \DateTimeImmutable('@' . $from))->setTimezone($timezone)->setTime(0, 0);
+        $end = (new \DateTimeImmutable('@' . $to))->setTimezone($timezone)->setTime(0, 0);
+        $diff = $start->diff($end);
+        return $diff->invert ? -$diff->days : $diff->days;
+    }
+
+    /**
      * Returns the start of a day relative to the day containing a timestamp.
      *
      * @param int $timestamp Any moment in the day.
