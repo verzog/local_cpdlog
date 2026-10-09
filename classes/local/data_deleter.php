@@ -236,6 +236,7 @@ final class data_deleter
         $DB->delete_records(entry::TABLE, ['userid' => $userid]);
         $DB->delete_records(target_resolver::CHOICE_TABLE, ['userid' => $userid]);
         $DB->delete_records(reminder::TABLE, ['userid' => $userid]);
+        $DB->delete_records(course_cpd::TABLE, ['userid' => $userid]);
         self::clear_staff_traces($userid);
 
         // Image blog awards that exist now are never copied back into the logbook (decision 18).

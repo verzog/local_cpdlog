@@ -15,41 +15,32 @@
 // along with Moodle.  If not, see <https://www.gnu.org/licenses/>.
 
 /**
- * Scheduled tasks of the CPD logbook.
+ * Event observers of the CPD logbook.
  *
  * @package    local_cpdlog
  * @copyright  2026 Vernon Spain
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
-defined('MOODLE_INTERNAL') || die();
+namespace local_cpdlog;
 
-$tasks = [
-    [
-        'classname' => '\local_cpdlog\task\award_course_cpd',
-        'blocking' => 0,
-        'minute' => '23',
-        'hour' => '*',
-        'day' => '*',
-        'month' => '*',
-        'dayofweek' => '*',
-    ],
-    [
-        'classname' => '\local_cpdlog\task\send_reminders',
-        'blocking' => 0,
-        'minute' => '17',
-        'hour' => '9',
-        'day' => '*',
-        'month' => '*',
-        'dayofweek' => '*',
-    ],
-    [
-        'classname' => '\local_cpdlog\task\sync_imageblog',
-        'blocking' => 0,
-        'minute' => '*/15',
-        'hour' => '*',
-        'day' => '*',
-        'month' => '*',
-        'dayofweek' => '*',
-    ],
-];
+use local_cpdlog\local\course_cpd;
+
+/**
+ * Event observers of the CPD logbook.
+ */
+class observer
+{
+    /**
+     * Creates a CPD entry, for approval, when a member completes a course that awards CPD.
+     *
+     * @param \core\event\course_completed $event The completion.
+     */
+    public static function course_completed(\core\event\course_completed $event): void {
+        global $DB;
+        $timecompleted = $DB->get_field('course_completions', 'timecompleted', ['id' => $event->objectid]);
+        if ($timecompleted) {
+            course_cpd::award((int) $event->relateduserid, (int) $event->courseid, (int) $timecompleted, true);
+        }
+    }
+}

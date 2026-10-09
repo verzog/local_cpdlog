@@ -129,5 +129,28 @@ function xmldb_local_cpdlog_upgrade($oldversion) {
         upgrade_plugin_savepoint(true, 2026101000, 'local', 'cpdlog');
     }
 
+    if ($oldversion < 2026101100) {
+        // The log of course completions that created a CPD entry.
+        $dbman = $DB->get_manager();
+        $table = new xmldb_table('local_cpdlog_completion');
+        $table->add_field('id', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, XMLDB_SEQUENCE, null);
+        $table->add_field('userid', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, null);
+        $table->add_field('courseid', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, null);
+        $table->add_field('entryid', XMLDB_TYPE_INTEGER, '10', null, null, null, null);
+        $table->add_field('timecompleted', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        $table->add_field('timecreated', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        $table->add_key('primary', XMLDB_KEY_PRIMARY, ['id']);
+        $table->add_key('userid', XMLDB_KEY_FOREIGN, ['userid'], 'user', ['id']);
+        $table->add_key('courseid', XMLDB_KEY_FOREIGN, ['courseid'], 'course', ['id']);
+        $table->add_index('userid-courseid', XMLDB_INDEX_UNIQUE, ['userid', 'courseid']);
+        if (!$dbman->table_exists($table)) {
+            $dbman->create_table($table);
+        }
+
+        // The course custom fields that say which courses award CPD.
+        \local_cpdlog\local\course_cpd::setup_fields();
+        upgrade_plugin_savepoint(true, 2026101100, 'local', 'cpdlog');
+    }
+
     return true;
 }

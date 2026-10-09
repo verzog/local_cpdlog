@@ -305,7 +305,7 @@ final class data_deleter_test extends \advanced_testcase
     }
 
     /**
-     * Deleting a member's CPD data also clears the reminders sent to them, and only theirs.
+     * Deleting a member's CPD data also clears their reminders and course completion log, and only theirs.
      */
     public function test_reminders_deleted(): void {
         global $DB;
@@ -316,12 +316,20 @@ final class data_deleter_test extends \advanced_testcase
                 'daysbefore' => 14,
                 'timesent' => time(),
             ]);
+            $DB->insert_record(course_cpd::TABLE, (object) [
+                'userid' => $user->id,
+                'courseid' => SITEID,
+                'timecompleted' => time(),
+                'timecreated' => time(),
+            ]);
         }
         set_config('enabledeletion', 1, 'local_cpdlog');
         data_deleter::queue((int) $this->member->id, (int) $this->admin->id);
         $this->runAdhocTasks(delete_member_data::class);
 
         $this->assertSame(0, $DB->count_records(reminder::TABLE, ['userid' => $this->member->id]));
+        $this->assertSame(0, $DB->count_records(course_cpd::TABLE, ['userid' => $this->member->id]));
+        $this->assertSame(1, $DB->count_records(course_cpd::TABLE, ['userid' => $this->other->id]));
         $this->assertSame(1, $DB->count_records(reminder::TABLE, ['userid' => $this->other->id]));
     }
 }

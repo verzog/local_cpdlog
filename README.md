@@ -19,6 +19,7 @@ agreed design decisions and the build plan.
 - [Approving CPD (approvers)](#approving-cpd-approvers)
 - [Staff reports](#staff-reports)
 - [Calendar and reminders](#calendar-and-reminders)
+- [CPD from course completions](#cpd-from-course-completions)
 - [CPD from the image blog](#cpd-from-the-image-blog)
 - [Privacy and data deletion](#privacy-and-data-deletion)
 - [Development and testing](#development-and-testing)
@@ -76,6 +77,9 @@ stated otherwise. Do these once after installing, in this order.
 Open _Settings_:
 
 - **Maximum hours per entry** (default 40): the most hours one entry can claim.
+- **Create CPD entries from course completions** (default on) and **Default category for course
+  CPD** (default Educational activities): see
+  [CPD from course completions](#cpd-from-course-completions).
 - **Send CPD reminders** (default on) and **Reminder days** (default 60,14): remind members who
   are behind on their targets before a reporting period closes. See
   [Calendar and reminders](#calendar-and-reminders).
@@ -235,6 +239,28 @@ Custom reports_:
 Both can be filtered by cohort, by any custom user profile field, and by period, category, status
 or whether a target is met, and exported like any custom report. Staff with Report Builder editing
 rights can copy the starting reports or build new ones from these sources.
+
+## CPD from course completions
+
+Moodle courses can add CPD to members' logbooks automatically when they are completed:
+
+1. In a course's settings, under _CPD logbook_, a manager sets **CPD hours** and, optionally,
+   **CPD category**. These fields are locked, so only managers can change them. Courses with no
+   category use _Settings > Default category for course CPD_.
+2. When a member completes the course (by Moodle course completion), a CPD entry is created for
+   those hours, dated on the completion date, and sent to the approval queue. Approvers are
+   notified and check it like any other entry.
+3. The hourly task _Create CPD entries for course completions_ also adds past completions and any
+   that were missed, without notifying approvers, so turning this on does not flood the queue
+   with notifications.
+
+Each completion creates at most one entry, even if the member later deletes it. Completions dated
+outside every reporting period wait until a period covers them. Completions made before staff
+deleted a member's CPD data are not added back.
+
+_CPD courses_ (under the CPD logbook settings, for staff with `local/cpdlog:viewall`) lists every
+course that awards CPD, with its hours, category and how many entries it has created. Untick
+_Settings > Create CPD entries from course completions_ to switch it off.
 
 ## Calendar and reminders
 

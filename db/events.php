@@ -15,7 +15,7 @@
 // along with Moodle.  If not, see <https://www.gnu.org/licenses/>.
 
 /**
- * Scheduled tasks of the CPD logbook.
+ * Event observers of the CPD logbook.
  *
  * @package    local_cpdlog
  * @copyright  2026 Vernon Spain
@@ -24,32 +24,9 @@
 
 defined('MOODLE_INTERNAL') || die();
 
-$tasks = [
+$observers = [
     [
-        'classname' => '\local_cpdlog\task\award_course_cpd',
-        'blocking' => 0,
-        'minute' => '23',
-        'hour' => '*',
-        'day' => '*',
-        'month' => '*',
-        'dayofweek' => '*',
-    ],
-    [
-        'classname' => '\local_cpdlog\task\send_reminders',
-        'blocking' => 0,
-        'minute' => '17',
-        'hour' => '9',
-        'day' => '*',
-        'month' => '*',
-        'dayofweek' => '*',
-    ],
-    [
-        'classname' => '\local_cpdlog\task\sync_imageblog',
-        'blocking' => 0,
-        'minute' => '*/15',
-        'hour' => '*',
-        'day' => '*',
-        'month' => '*',
-        'dayofweek' => '*',
+        'eventname' => '\core\event\course_completed',
+        'callback' => '\local_cpdlog\observer::course_completed',
     ],
 ];

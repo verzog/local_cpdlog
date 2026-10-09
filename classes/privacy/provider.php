@@ -110,6 +110,13 @@ class provider implements
             'daysbefore' => 'privacy:metadata:local_cpdlog_reminder:daysbefore',
             'timesent' => 'privacy:metadata:local_cpdlog_reminder:timesent',
         ], 'privacy:metadata:local_cpdlog_reminder');
+        $collection->add_database_table('local_cpdlog_completion', [
+            'userid' => 'privacy:metadata:local_cpdlog_completion:userid',
+            'courseid' => 'privacy:metadata:local_cpdlog_completion:courseid',
+            'entryid' => 'privacy:metadata:local_cpdlog_completion:entryid',
+            'timecompleted' => 'privacy:metadata:local_cpdlog_completion:timecompleted',
+            'timecreated' => 'privacy:metadata:local_cpdlog_completion:timecreated',
+        ], 'privacy:metadata:local_cpdlog_completion');
         $collection->add_subsystem_link('core_files', [], 'privacy:metadata:core_files');
         $collection->add_subsystem_link('core_message', [], 'privacy:metadata:core_message');
 
@@ -158,6 +165,7 @@ class provider implements
             $userlist->add_from_sql($field, "SELECT {$field} FROM {local_cpdlog_deletion}", []);
         }
         $userlist->add_from_sql('userid', 'SELECT userid FROM {local_cpdlog_reminder}', []);
+        $userlist->add_from_sql('userid', 'SELECT userid FROM {local_cpdlog_completion}', []);
         foreach (self::CONFIG_TABLES as $table) {
             $userlist->add_from_sql('usermodified', "SELECT usermodified FROM {{$table}} WHERE usermodified > 0", []);
         }
@@ -261,6 +269,26 @@ class provider implements
             $writer->export_data($subcontext, (object) ['reminders' => $reminders]);
         }
 
+        // Course completions that created a CPD entry.
+        $completions = [];
+        $sql = 'SELECT l.id, c.fullname, l.entryid, l.timecompleted, l.timecreated
+                  FROM {local_cpdlog_completion} l
+             LEFT JOIN {course} c ON c.id = l.courseid
+                 WHERE l.userid = :userid
+              ORDER BY l.timecompleted';
+        foreach ($DB->get_records_sql($sql, ['userid' => $userid]) as $completion) {
+            $completions[] = (object) [
+                'course' => $completion->fullname === null ? null : format_string($completion->fullname),
+                'entryid' => $completion->entryid,
+                'timecompleted' => transform::datetime($completion->timecompleted),
+                'timecreated' => transform::datetime($completion->timecreated),
+            ];
+        }
+        if ($completions) {
+            $subcontext = [$component, get_string('privacy:completions', 'local_cpdlog')];
+            $writer->export_data($subcontext, (object) ['completions' => $completions]);
+        }
+
         // As staff, only the fact of each action is exported, not other members' CPD details.
         $actions = [];
         $sql = 'SELECT id, reviewedby, timereviewed, reversedby, timereversed, usermodified, timemodified
@@ -357,6 +385,9 @@ class provider implements
             return true;
         }
         if ($DB->record_exists('local_cpdlog_reminder', ['userid' => $userid])) {
+            return true;
+        }
+        if ($DB->record_exists('local_cpdlog_completion', ['userid' => $userid])) {
             return true;
         }
         foreach (self::CONFIG_TABLES as $table) {

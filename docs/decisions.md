@@ -150,6 +150,17 @@ scoping", 24/09/2026). Where this file and the scoping document differ, this fil
     valid if its category later stops accepting new ones. Duplicate warnings match external
     activities on their name.
 
+21. **CPD from course completions** (agreed 09/10/2026). Two locked course custom fields in a
+    "CPD logbook" category, `cpdlog_hours` (number) and `cpdlog_category` (select), say which
+    courses award CPD. Completing such a course creates an entry for those hours on the completion
+    date, submitted for approval (approvers notified); an hourly task adds past and missed
+    completions without notifying. `local_cpdlog_completion` makes each completion create at most
+    one entry, even if it is later deleted; the deletion tool clears it and its guard (completions
+    before a deletion, or while one is queued) stops re-creation. The select field's options list
+    every category in creation order and only grow, because Moodle stores the option's position;
+    the label ends with the short name, which is what is read back. A staff page, _CPD courses_,
+    lists the courses that award CPD.
+
 ## Schema notes
 
 - `local_cpdlog_target` holds the required hours; `local_cpdlog_target_cat` links the categories
@@ -200,6 +211,7 @@ standard, including the boilerplate sniff, with no `.phpcs.xml` overrides.
 | 7. iMIS pull | Read-only import and conflict detection | |
 | 8. Calendar and events | Period dates in the calendar, reminders (decision 19); upcoming events | In progress |
 | Image blog | Copy CPD awarded by `local_imageblog` into the logbook | Done |
+| External and course CPD | External activities (decision 20); CPD from course completions (decision 21) | In progress |
 
 ## Still open
 

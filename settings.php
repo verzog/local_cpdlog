@@ -46,6 +46,21 @@ if ($hassiteconfig) {
         $enabledeletion->set_updatedcallback([\local_cpdlog\local\data_deleter::class, 'setting_updated']);
         $settings->add($enabledeletion);
 
+        // CPD entries created, for approval, when members complete courses that award CPD.
+        $settings->add(new admin_setting_configcheckbox(
+            'local_cpdlog/completionenabled',
+            new lang_string('completionenabled', 'local_cpdlog'),
+            new lang_string('completionenabled_desc', 'local_cpdlog'),
+            1
+        ));
+        $settings->add(new admin_setting_configselect(
+            'local_cpdlog/completioncategory',
+            new lang_string('completioncategory', 'local_cpdlog'),
+            new lang_string('completioncategory_desc', 'local_cpdlog'),
+            'EA',
+            [\local_cpdlog\local\course_cpd::class, 'get_category_choices']
+        ));
+
         // Reminders before a reporting period closes, to members with targets not yet met.
         $settings->add(new admin_setting_configcheckbox(
             'local_cpdlog/remindersenabled',
@@ -106,6 +121,13 @@ $ADMIN->add('local_cpdlog', new admin_externalpage(
     new lang_string('approvalqueue', 'local_cpdlog'),
     new moodle_url('/local/cpdlog/admin/review.php'),
     'local/cpdlog:approve'
+));
+// The courses that award CPD on completion are visible to staff who can view every logbook.
+$ADMIN->add('local_cpdlog', new admin_externalpage(
+    'local_cpdlog_courses',
+    new lang_string('cpdcourses', 'local_cpdlog'),
+    new moodle_url('/local/cpdlog/admin/courses.php'),
+    'local/cpdlog:viewall'
 ));
 // Deleting a member's CPD data is visible to holders of local/cpdlog:deletedata.
 $ADMIN->add('local_cpdlog', new admin_externalpage(

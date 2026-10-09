@@ -23,12 +23,14 @@
  */
 
 /**
- * Adds the starting categories that staff can rename, disable or add to, and the starting reports.
+ * Adds the starting categories that staff can rename, disable or add to, the starting reports, and
+ * the course custom fields that say which courses award CPD.
  *
  * @return bool
  */
 function xmldb_local_cpdlog_install() {
     \local_cpdlog\local\setup::add_default_categories();
     \local_cpdlog\local\setup::add_default_reports();
+    \local_cpdlog\local\course_cpd::setup_fields();
     return true;
 }

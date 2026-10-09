@@ -50,6 +50,7 @@ final class provider_test extends \core_privacy\tests\provider_testcase
             'core_message',
             'local_cpdlog_category',
             'local_cpdlog_cohortchoice',
+            'local_cpdlog_completion',
             'local_cpdlog_deletion',
             'local_cpdlog_entry',
             'local_cpdlog_period',
@@ -280,5 +281,36 @@ final class provider_test extends \core_privacy\tests\provider_testcase
 
         provider::delete_data_for_users(new approved_userlist($system, 'local_cpdlog', [$other->id]));
         $this->assertSame(0, $DB->count_records('local_cpdlog_reminder'));
+    }
+
+    /**
+     * Course completions that created an entry are declared, listed and exported, and kept on request.
+     */
+    public function test_completions(): void {
+        global $DB;
+        $this->resetAfterTest();
+        $member = $this->getDataGenerator()->create_user();
+        $course = $this->getDataGenerator()->create_course(['fullname' => 'Dermoscopy basics']);
+        $DB->insert_record('local_cpdlog_completion', (object) [
+            'userid' => $member->id,
+            'courseid' => $course->id,
+            'entryid' => 5,
+            'timecompleted' => time(),
+            'timecreated' => time(),
+        ]);
+        $system = \context_system::instance();
+
+        $this->assertEquals([$system->id], provider::get_contexts_for_userid($member->id)->get_contextids());
+        $userlist = new userlist($system, 'local_cpdlog');
+        provider::get_users_in_context($userlist);
+        $this->assertEquals([$member->id], $userlist->get_userids());
+
+        $this->export_context_data_for_user($member->id, $system, 'local_cpdlog');
+        $component = get_string('pluginname', 'local_cpdlog');
+        $data = writer::with_context($system)->get_data([$component, get_string('privacy:completions', 'local_cpdlog')]);
+        $this->assertSame('Dermoscopy basics', $data->completions[0]->course);
+
+        provider::delete_data_for_user(new approved_contextlist($member, 'local_cpdlog', [$system->id]));
+        $this->assertSame(1, $DB->count_records('local_cpdlog_completion'));
     }
 }
