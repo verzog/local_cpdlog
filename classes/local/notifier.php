@@ -70,8 +70,9 @@ final class notifier
      * @param \stdClass $member The member, with id, lang and firstname.
      * @param period $period The period.
      * @param \stdClass[] $unmet Their unmet targets, as returned by progress::get_progress().
+     * @return bool Whether the message was sent.
      */
-    public static function period_reminder(\stdClass $member, period $period, array $unmet): void {
+    public static function period_reminder(\stdClass $member, period $period, array $unmet): bool {
         $oldlang = force_current_language($member->lang ?? '');
         try {
             $values = (object) [
@@ -120,7 +121,7 @@ final class notifier
         $message->notification = 1;
         $message->contexturl = $url->out(false);
         $message->contexturlname = $urlname;
-        message_send($message);
+        return message_send($message) !== false;
     }
 
     /**

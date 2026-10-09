@@ -100,6 +100,16 @@ final class calendar_test extends \advanced_testcase
     }
 
     /**
+     * The event name keeps the raw period name, which the calendar formats when it shows it.
+     */
+    public function test_name_not_escaped(): void {
+        $period = $this->getDataGenerator()->get_plugin_generator('local_cpdlog')
+            ->create_period(['name' => 'R&D 2026', 'firstday' => '01/01/2026', 'lastday' => '31/12/2026']);
+        $event = calendar::get_event((int) $period->get('id'), calendar::CLOSES);
+        $this->assertSame('CPD reporting period R&D 2026 closes', $event->name);
+    }
+
+    /**
      * Syncing every period restores missing events without duplicating existing ones.
      */
     public function test_sync_all(): void {

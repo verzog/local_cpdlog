@@ -94,19 +94,23 @@ final class reminder
      * Sends the reminders due now.
      *
      * @param int|null $now The time to work from; now if null.
+     * @param int $limit Most reminders to send in this run.
      * @return int How many reminders were sent.
      */
-    public static function send_due(?int $now = null): int {
+    public static function send_due(?int $now = null, int $limit = self::BATCH): int {
         $now = $now ?? time();
         if (!self::is_enabled()) {
             return 0;
         }
         $thresholds = self::get_thresholds();
         $sent = 0;
-        $open = period::get_records_select('status = :open AND enddate > :now', [
+        // Periods that have opened and not yet closed.
+        $open = period::get_records_select('status = :open AND startdate <= :now1 AND enddate > :now2', [
             'open' => period::STATUS_OPEN,
-            'now' => $now,
+            'now1' => $now,
+            'now2' => $now,
         ], 'startdate');
+        $lockfactory = \core\lock\lock_config::get_lock_factory(data_deleter::LOCK_TYPE);
         foreach ($open as $period) {
             $daysleft = dates::days_between($now, $period->get_lastday());
             $threshold = self::applicable_threshold($daysleft, $thresholds);
@@ -115,15 +119,25 @@ final class reminder
             }
             $members = self::get_unreminded_members($period, $threshold);
             foreach ($members as $user) {
-                if ($sent >= self::BATCH) {
+                if ($sent >= $limit) {
                     break;
                 }
-                if (self::remind($user, $period, $threshold)) {
-                    $sent++;
+                // Under the lock that queuing a deletion takes, and never while one is queued, so a
+                // deletion of the member's CPD data cannot overlap a reminder (decision 17).
+                $lock = $lockfactory->get_lock(data_deleter::lock_key((int) $user->id), 5);
+                if (!$lock) {
+                    continue;
+                }
+                try {
+                    if (!data_deleter::get_queued((int) $user->id) && self::remind($user, $period, $threshold)) {
+                        $sent++;
+                    }
+                } finally {
+                    $lock->release();
                 }
             }
             $members->close();
-            if ($sent >= self::BATCH) {
+            if ($sent >= $limit) {
                 break;
             }
         }
@@ -131,7 +145,9 @@ final class reminder
     }
 
     /**
-     * Returns the active members of a period not yet sent this reminder.
+     * Returns the active members of a period not yet sent this reminder, those with no reminder for
+     * the period at all first, so a run cut short by the batch limit reaches them before anyone gets
+     * a second reminder.
      *
      * @param period $period The period.
      * @param int $threshold The reminder point.
@@ -152,12 +168,13 @@ final class reminder
                        SELECT 1 FROM {' . self::TABLE . '} r
                         WHERE r.userid = u.id AND r.periodid = :period3 AND r.daysbefore = :threshold
                    )
-              ORDER BY u.id';
+              ORDER BY (SELECT COUNT(1) FROM {' . self::TABLE . '} p WHERE p.userid = u.id AND p.periodid = :period4), u.id';
         $periodid = (int) $period->get('id');
         return $DB->get_recordset_sql($sql, [
             'period1' => $periodid,
             'period2' => $periodid,
             'period3' => $periodid,
+            'period4' => $periodid,
             'threshold' => $threshold,
         ]);
     }
@@ -176,7 +193,10 @@ final class reminder
         if (!$unmet) {
             return false;
         }
-        notifier::period_reminder($user, $period, $unmet);
+        // A failed send is not logged, so the next run tries again.
+        if (!notifier::period_reminder($user, $period, $unmet)) {
+            return false;
+        }
         $DB->insert_record(self::TABLE, (object) [
             'userid' => $user->id,
             'periodid' => $period->get('id'),

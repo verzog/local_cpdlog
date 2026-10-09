@@ -225,4 +225,77 @@ final class reminder_test extends \advanced_testcase
         $this->expectOutputRegex('/CPD reminders sent: 2\./');
         (new send_reminders())->execute();
     }
+
+    /**
+     * A period that has not opened yet sends no reminders, even close to its end.
+     */
+    public function test_future_period_waits(): void {
+        $this->redirectMessages();
+        $this->period->set('startdate', self::sydney('2026-12-20 00:00'));
+        $this->period->update();
+        $this->assertSame(0, reminder::send_due(self::sydney('2026-12-17 09:00')));
+        $this->assertSame(2, reminder::send_due(self::sydney('2026-12-20 09:00')));
+    }
+
+    /**
+     * When a run is cut short, members never reminded about the period come before second reminders.
+     */
+    public function test_unreminded_members_first(): void {
+        $sink = $this->redirectMessages();
+        // The first run reaches only one member, at the 60-day point.
+        $this->assertSame(1, reminder::send_due(self::sydney('2026-11-01 09:00'), 1));
+        $first = $sink->get_messages()[0]->useridto;
+        $sink->clear();
+
+        // At the 14-day point the member not yet reminded goes first.
+        $this->assertSame(1, reminder::send_due(self::sydney('2026-12-17 09:00'), 1));
+        $second = $sink->get_messages()[0]->useridto;
+        $this->assertNotEquals($first, $second);
+        $this->assertEqualsCanonicalizing([$this->behind->id, $this->cohortmember->id], [$first, $second]);
+    }
+
+    /**
+     * Members with a deletion of their CPD data queued, or whose deletion lock is held, are left alone.
+     */
+    public function test_respects_member_deletion(): void {
+        global $CFG;
+        $sink = $this->redirectMessages();
+        set_config('enabledeletion', 1, 'local_cpdlog');
+        data_deleter::queue((int) $this->behind->id, (int) get_admin()->id);
+
+        // Database locks are re-entrant within one connection, so file locks stand in for another process.
+        $CFG->lock_factory = '\\core\\lock\\file_lock_factory';
+        $lock = \core\lock\lock_config::get_lock_factory(data_deleter::LOCK_TYPE)
+            ->get_lock(data_deleter::lock_key((int) $this->cohortmember->id), 0);
+        try {
+            $this->assertSame(0, reminder::send_due(self::sydney('2026-12-17 09:00')));
+        } finally {
+            $lock->release();
+        }
+        $this->assertSame(1, reminder::send_due(self::sydney('2026-12-17 09:00')));
+        $this->assertEquals([$this->cohortmember->id], array_column($sink->get_messages(), 'useridto'));
+    }
+
+    /**
+     * Deleting a period removes the reminders sent about it.
+     */
+    public function test_period_delete_removes_reminders(): void {
+        global $DB;
+        $this->redirectMessages();
+        $period = $this->getDataGenerator()->get_plugin_generator('local_cpdlog')
+            ->create_period(['name' => '2027', 'firstday' => '01/01/2027', 'lastday' => '31/12/2027']);
+        $DB->insert_record(reminder::TABLE, (object) [
+            'userid' => $this->behind->id,
+            'periodid' => $period->get('id'),
+            'daysbefore' => 14,
+            'timesent' => time(),
+        ]);
+        reminder::send_due(self::sydney('2026-12-17 09:00'));
+
+        $periodid = (int) $period->get('id');
+        $period->delete();
+
+        $this->assertSame(0, $DB->count_records(reminder::TABLE, ['periodid' => $periodid]));
+        $this->assertSame(2, $DB->count_records(reminder::TABLE, ['periodid' => $this->period->get('id')]));
+    }
 }

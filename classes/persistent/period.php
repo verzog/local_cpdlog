@@ -138,13 +138,16 @@ class period extends \core\persistent
     }
 
     /**
-     * Removes the deleted period's calendar events.
+     * Removes the deleted period's calendar events and the reminders sent about it.
      *
      * @param bool $result Whether the delete succeeded.
      */
     protected function after_delete($result) {
+        global $DB;
         if ($result) {
             \local_cpdlog\local\calendar::remove_period((int) $this->get('id'));
+            // Reminders about the period go with it; they are not CPD records.
+            $DB->delete_records(\local_cpdlog\local\reminder::TABLE, ['periodid' => $this->get('id')]);
         }
     }
 

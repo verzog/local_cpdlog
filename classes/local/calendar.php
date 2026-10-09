@@ -55,7 +55,8 @@ final class calendar
         $dates = [self::OPENS => (int) $period->get('startdate'), self::CLOSES => $period->get_lastday()];
         foreach ($dates as $which => $timestart) {
             $data = (object) [
-                'name' => get_string('calendar:period' . $which, 'local_cpdlog', format_string($period->get('name'))),
+                // The calendar formats event names when it shows them, so the raw name is stored.
+                'name' => get_string('calendar:period' . $which, 'local_cpdlog', $period->get('name')),
                 'description' => '',
                 'format' => FORMAT_HTML,
                 'courseid' => SITEID,
