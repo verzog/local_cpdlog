@@ -33,15 +33,16 @@ use local_cpdlog\persistent\entry;
  * Creates CPD entries automatically when members complete courses that award CPD.
  *
  * A course awards CPD when its "CPD hours" custom field is above zero; its "CPD category" field
- * says which CPD category, falling back to the setting local_cpdlog/completioncategory. When a member
+ * says which CPD category, falling back to the setting local_cpdlog/completioncategory. Hours above
+ * the site's maximum per entry are capped at it. When a member
  * completes such a course, an entry for those hours is created at the completion date and submitted
  * for approval, so an approver checks it like any other entry (decision 21). The completion event
  * creates it at once; an hourly task also catches past completions and any the event missed.
  *
  * Each completion creates at most one entry, recorded in local_cpdlog_completion, so an entry the
  * member later deletes is not created again. Completions are skipped while a deletion of the
- * member's CPD data is queued, or if they happened before one ran, and wait when no reporting period
- * covers their date. The setting local_cpdlog/completionenabled switches it off.
+ * member's CPD data is queued, or if they happened before one ran, and wait while no open reporting
+ * period covers their date. The setting local_cpdlog/completionenabled switches it off.
  *
  * The two custom fields belong to the "CPD logbook" course custom field category. The options of
  * the category field list every CPD category in creation order, as "Name (SHORTNAME)", and only ever
@@ -139,6 +140,24 @@ final class course_cpd
     }
 
     /**
+     * Removes the two course custom fields, with every course's values, and their category if it is
+     * then empty. Used when the plugin is uninstalled.
+     */
+    public static function remove_fields(): void {
+        $handler = self::handler();
+        foreach ([self::FIELD_HOURS, self::FIELD_CATEGORY] as $shortname) {
+            if ($field = self::get_field($shortname)) {
+                $handler->delete_field_configuration($field);
+            }
+        }
+        foreach ($handler->get_categories_with_fields() as $category) {
+            if ($category->get('name') === get_string('pluginname', 'local_cpdlog') && !$category->get_fields()) {
+                $handler->delete_category($category);
+            }
+        }
+    }
+
+    /**
      * Creates one course custom field.
      *
      * @param \core_customfield\category_controller $category The custom field category.
@@ -223,7 +242,9 @@ final class course_cpd
         if ($hours < 0.01) {
             return null;
         }
-        return (object) ['hours' => min($hours, entry::MAX_HOURS), 'category' => self::resolve_category($shortname)];
+        // No more than an entry may claim, as for entries members log.
+        $hours = min($hours, entry_manager::get_max_hours());
+        return (object) ['hours' => $hours, 'category' => self::resolve_category($shortname)];
     }
 
     /**
@@ -272,8 +293,11 @@ final class course_cpd
      */
     public static function award(int $userid, int $courseid, int $timecompleted, bool $notify): string {
         global $DB;
+        if (!self::is_enabled()) {
+            return 'none';
+        }
         $cpd = self::get_course_cpd($courseid);
-        if (!$cpd || !self::is_enabled()) {
+        if (!$cpd) {
             return 'none';
         }
         $lock = \core\lock\lock_config::get_lock_factory(data_deleter::LOCK_TYPE)
@@ -294,8 +318,9 @@ final class course_cpd
             if (self::blocked_by_deletion($userid, $timecompleted)) {
                 return 'skipped';
             }
+            // A closed period's entries cannot be reviewed, so the completion waits until it reopens.
             $period = entry_manager::find_period($timecompleted);
-            if (!$period) {
+            if (!$period || $period->is_closed()) {
                 return 'skipped';
             }
             $course = $DB->get_record('course', ['id' => $courseid], 'id, fullname', MUST_EXIST);
@@ -375,23 +400,21 @@ final class course_cpd
                  WHERE cc.timecompleted > 0
                    AND NOT EXISTS (SELECT 1 FROM {' . self::TABLE . '} l WHERE l.userid = cc.userid AND l.courseid = cc.course)
                    AND EXISTS (SELECT 1 FROM {local_cpdlog_period} p
-                                WHERE p.startdate <= cc.timecompleted AND p.enddate > cc.timecompleted)
+                                WHERE p.startdate <= cc.timecompleted AND p.enddate > cc.timecompleted
+                                      AND p.status = :open)
                    AND NOT EXISTS (SELECT 1 FROM {' . data_deleter::TABLE . '} x
                                     WHERE x.userid = cc.userid
                                       AND (x.status = :queued OR (x.status = :done AND x.timecompleted >= cc.timecompleted)))
               ORDER BY cc.timecompleted, cc.id';
-        // Completions that cannot be awarded yet (no period covers them, or a deletion blocks them) are
-        // left out here, so they never hold up later ones.
+        // Completions that cannot be awarded yet (no open period covers them, or a deletion blocks them)
+        // are left out here, so they never hold up later ones; the database returns one batch at most.
         $completions = $DB->get_recordset_sql($sql, [
             'fieldid' => $field->get('id'),
+            'open' => \local_cpdlog\persistent\period::STATUS_OPEN,
             'queued' => data_deleter::STATUS_QUEUED,
             'done' => data_deleter::STATUS_DONE,
-        ]);
-        $handled = 0;
+        ], 0, $limit);
         foreach ($completions as $completion) {
-            if ($handled++ >= $limit) {
-                break;
-            }
             $outcome = self::award((int) $completion->userid, (int) $completion->course, (int) $completion->timecompleted, false);
             if ($outcome === 'created') {
                 $result->created++;

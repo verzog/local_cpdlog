@@ -44,10 +44,13 @@ if (!$field) {
     die();
 }
 
-$sql = 'SELECT c.id, c.fullname, c.shortname, c.visible,
-               (SELECT COUNT(1) FROM {' . course_cpd::TABLE . '} l WHERE l.courseid = c.id) AS awarded
+// Entries created are counted once for all courses, rather than per course.
+$sql = 'SELECT c.id, c.fullname, c.shortname, c.visible, COALESCE(l.awarded, 0) AS awarded
           FROM {course} c
           JOIN {customfield_data} d ON d.instanceid = c.id AND d.fieldid = :fieldid AND d.decvalue > 0
+     LEFT JOIN (SELECT courseid, COUNT(1) AS awarded
+                  FROM {' . course_cpd::TABLE . '}
+              GROUP BY courseid) l ON l.courseid = c.id
       ORDER BY c.fullname, c.id';
 $courses = $DB->get_records_sql($sql, ['fieldid' => $field->get('id')]);
 

@@ -277,4 +277,68 @@ final class course_cpd_test extends \advanced_testcase
         $later = $this->create_cpd_course(1);
         $this->assertSame('created', course_cpd::award((int) $this->member->id, (int) $later->id, time() + 60, false));
     }
+
+    /**
+     * A completion in a closed period waits, as its entry could not be reviewed, and follows once it reopens.
+     */
+    public function test_closed_period_waits(): void {
+        $course = $this->create_cpd_course(1);
+        $this->insert_completion((int) $course->id, self::sydney('2026-02-01 10:00'));
+        $period = \local_cpdlog\persistent\period::get_record(['name' => '2026']);
+        $period->set('status', \local_cpdlog\persistent\period::STATUS_CLOSED);
+        $period->update();
+
+        $this->assertSame(0, course_cpd::catch_up()->created);
+        $completed = self::sydney('2026-02-01 10:00');
+        $this->assertSame('skipped', course_cpd::award((int) $this->member->id, (int) $course->id, $completed, false));
+
+        $period->set('status', \local_cpdlog\persistent\period::STATUS_OPEN);
+        $period->update();
+        $this->assertSame(1, course_cpd::catch_up()->created);
+    }
+
+    /**
+     * Course hours above the site's maximum per entry are capped at it.
+     */
+    public function test_max_hours(): void {
+        set_config('maxhoursperentry', 2, 'local_cpdlog');
+        $course = $this->create_cpd_course(5);
+        $this->assertEquals(2, course_cpd::get_course_cpd((int) $course->id)->hours);
+    }
+
+    /**
+     * Switched off, nothing about the course is looked up; and a completion never fails because the
+     * logbook cannot record it.
+     */
+    public function test_never_breaks_completion(): void {
+        global $CFG, $DB;
+        require_once($CFG->dirroot . '/completion/completion_completion.php');
+        $this->redirectMessages();
+        $course = $this->create_cpd_course(1);
+        $DB->set_field(category::TABLE, 'enabled', 0, []);
+
+        set_config('completionenabled', 0, 'local_cpdlog');
+        $this->assertSame('none', course_cpd::award((int) $this->member->id, (int) $course->id, time(), false));
+
+        set_config('completionenabled', 1, 'local_cpdlog');
+        $completion = new \completion_completion(['userid' => $this->member->id, 'course' => $course->id]);
+        $completion->mark_complete(self::sydney('2026-03-10 14:00'));
+        $this->assertDebuggingCalled();
+        $this->assertNotEmpty($completion->timecompleted);
+        $this->assertFalse($this->entry_for((int) $course->id));
+    }
+
+    /**
+     * Uninstalling removes the two course fields and their category.
+     */
+    public function test_remove_fields(): void {
+        global $DB;
+        $this->create_cpd_course(2);
+        course_cpd::remove_fields();
+
+        $this->assertNull(course_cpd::get_field(course_cpd::FIELD_HOURS));
+        $this->assertNull(course_cpd::get_field(course_cpd::FIELD_CATEGORY));
+        $this->assertFalse($DB->record_exists('customfield_category', ['name' => 'CPD logbook', 'component' => 'core_course']));
+        $this->assertSame(0, $DB->count_records('customfield_data'));
+    }
 }
