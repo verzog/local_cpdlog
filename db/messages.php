@@ -40,6 +40,14 @@ $messageproviders = [
         ],
         'capability' => 'local/cpdlog:approve',
     ],
+    // Tells approvers that course completions are waiting to be released to CPD logbooks.
+    'completionswaiting' => [
+        'defaults' => [
+            'popup' => MESSAGE_PERMITTED + MESSAGE_DEFAULT_ENABLED,
+            'email' => MESSAGE_PERMITTED + MESSAGE_DEFAULT_ENABLED,
+        ],
+        'capability' => 'local/cpdlog:approve',
+    ],
     // Reminds a member, before a reporting period closes, of the targets they have not met.
     'periodreminder' => [
         'defaults' => [

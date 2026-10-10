@@ -207,6 +207,15 @@ final class data_deleter_test extends \advanced_testcase
             'usermodified' => $staff->id,
         ]);
         $this->add_choice((int) $this->other->id, (int) $staff->id);
+        $completionid = $DB->insert_record(course_cpd::TABLE, (object) [
+            'userid' => $this->other->id,
+            'courseid' => SITEID,
+            'status' => course_cpd::STATUS_EXCLUDED,
+            'timecompleted' => 1000,
+            'actionedby' => $staff->id,
+            'timecreated' => 1000,
+            'timemodified' => 1000,
+        ]);
         $this->setUser($staff);
         $category = category::get_record(['shortname' => 'EA']);
         $category->set('name', 'Education');
@@ -214,8 +223,8 @@ final class data_deleter_test extends \advanced_testcase
         $this->setAdminUser();
 
         set_config('enabledeletion', 1, 'local_cpdlog');
-        // Reviewer, reverser and last editor of one entry, a cohort choice, and a category.
-        $this->assertSame(5, data_deleter::count((int) $staff->id)->stafftraces);
+        // Reviewer, reverser and last editor of one entry, a cohort choice, an exclusion, and a category.
+        $this->assertSame(6, data_deleter::count((int) $staff->id)->stafftraces);
         data_deleter::queue((int) $staff->id, (int) $this->admin->id);
         $this->runAdhocTasks(delete_member_data::class);
 
@@ -227,6 +236,9 @@ final class data_deleter_test extends \advanced_testcase
         $this->assertEquals(1000, $kept->timereviewed);
         $choice = $DB->get_record(target_resolver::CHOICE_TABLE, ['userid' => $this->other->id]);
         $this->assertEquals(0, $choice->chosenby);
+        $completion = $DB->get_record(course_cpd::TABLE, ['id' => $completionid]);
+        $this->assertEquals(0, $completion->actionedby);
+        $this->assertSame(course_cpd::STATUS_EXCLUDED, $completion->status);
         $this->assertEquals(0, $DB->get_field(category::TABLE, 'usermodified', ['shortname' => 'EA']));
         $this->assertSame('Education', $DB->get_field(category::TABLE, 'name', ['shortname' => 'EA']));
     }
@@ -305,7 +317,7 @@ final class data_deleter_test extends \advanced_testcase
     }
 
     /**
-     * Deleting a member's CPD data also clears the reminders sent to them, and only theirs.
+     * Deleting a member's CPD data also clears their reminders and course completion log, and only theirs.
      */
     public function test_reminders_deleted(): void {
         global $DB;
@@ -316,12 +328,20 @@ final class data_deleter_test extends \advanced_testcase
                 'daysbefore' => 14,
                 'timesent' => time(),
             ]);
+            $DB->insert_record(course_cpd::TABLE, (object) [
+                'userid' => $user->id,
+                'courseid' => SITEID,
+                'timecompleted' => time(),
+                'timecreated' => time(),
+            ]);
         }
         set_config('enabledeletion', 1, 'local_cpdlog');
         data_deleter::queue((int) $this->member->id, (int) $this->admin->id);
         $this->runAdhocTasks(delete_member_data::class);
 
         $this->assertSame(0, $DB->count_records(reminder::TABLE, ['userid' => $this->member->id]));
+        $this->assertSame(0, $DB->count_records(course_cpd::TABLE, ['userid' => $this->member->id]));
+        $this->assertSame(1, $DB->count_records(course_cpd::TABLE, ['userid' => $this->other->id]));
         $this->assertSame(1, $DB->count_records(reminder::TABLE, ['userid' => $this->other->id]));
     }
 }

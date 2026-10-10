@@ -15,18 +15,19 @@
 // along with Moodle.  If not, see <https://www.gnu.org/licenses/>.
 
 /**
- * Version information for the CPD logbook plugin.
+ * Removes what the CPD logbook added outside its own tables when it is uninstalled.
  *
  * @package    local_cpdlog
  * @copyright  2026 Vernon Spain
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
-defined('MOODLE_INTERNAL') || die();
-
-$plugin->component = 'local_cpdlog';
-$plugin->version = 2026101200;
-$plugin->requires = 2025041400; // Moodle 5.0.
-$plugin->supported = [500, 503];
-$plugin->maturity = MATURITY_ALPHA;
-$plugin->release = '0.1.0';
+/**
+ * Removes the course custom fields saying which courses award CPD, with their values.
+ *
+ * @return bool
+ */
+function xmldb_local_cpdlog_uninstall() {
+    \local_cpdlog\local\course_cpd::remove_fields();
+    return true;
+}

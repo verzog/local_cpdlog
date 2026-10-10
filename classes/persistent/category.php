@@ -142,4 +142,22 @@ class category extends \core\persistent
         global $DB;
         return (int) $DB->get_field_sql('SELECT COALESCE(MAX(sortorder), -1) + 1 FROM {' . self::TABLE . '}');
     }
+
+    /**
+     * Offers the new category in the course "CPD category" field.
+     */
+    protected function after_create() {
+        \local_cpdlog\local\course_cpd::sync_category_options();
+    }
+
+    /**
+     * Shows the category's new name in the course "CPD category" field.
+     *
+     * @param bool $result Whether the update succeeded.
+     */
+    protected function after_update($result) {
+        if ($result) {
+            \local_cpdlog\local\course_cpd::sync_category_options();
+        }
+    }
 }

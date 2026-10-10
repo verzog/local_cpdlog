@@ -129,5 +129,51 @@ function xmldb_local_cpdlog_upgrade($oldversion) {
         upgrade_plugin_savepoint(true, 2026101000, 'local', 'cpdlog');
     }
 
+    if ($oldversion < 2026101200) {
+        // Staff decisions on course completions: released to the member's logbook, or excluded.
+        $dbman = $DB->get_manager();
+        $table = new xmldb_table('local_cpdlog_completion');
+        $fields = [
+            new xmldb_field('id', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, XMLDB_SEQUENCE, null),
+            new xmldb_field('userid', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, null),
+            new xmldb_field('courseid', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, null),
+            new xmldb_field('entryid', XMLDB_TYPE_INTEGER, '10', null, null, null, null),
+            new xmldb_field('status', XMLDB_TYPE_CHAR, '20', null, XMLDB_NOTNULL, null, 'released'),
+            new xmldb_field('timecompleted', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0'),
+            new xmldb_field('actionedby', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0'),
+            new xmldb_field('timecreated', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0'),
+            new xmldb_field('timemodified', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0'),
+        ];
+        $index = new xmldb_index('courseid-status', XMLDB_INDEX_NOTUNIQUE, ['courseid', 'status']);
+        if (!$dbman->table_exists($table)) {
+            foreach ($fields as $field) {
+                $table->addField($field);
+            }
+            $table->add_key('primary', XMLDB_KEY_PRIMARY, ['id']);
+            $table->add_key('userid', XMLDB_KEY_FOREIGN, ['userid'], 'user', ['id']);
+            $table->add_key('courseid', XMLDB_KEY_FOREIGN, ['courseid'], 'course', ['id']);
+            $table->add_index('userid-courseid', XMLDB_INDEX_UNIQUE, ['userid', 'courseid']);
+            $table->addIndex($index);
+            $dbman->create_table($table);
+        } else {
+            // A test site that ran an earlier build of this change has the table without these.
+            $previous = 'entryid';
+            foreach (array_slice($fields, 4) as $field) {
+                $field->setPrevious($previous);
+                if (!$dbman->field_exists($table, $field)) {
+                    $dbman->add_field($table, $field);
+                }
+                $previous = $field->getName();
+            }
+            if (!$dbman->index_exists($table, $index)) {
+                $dbman->add_index($table, $index);
+            }
+        }
+
+        // The course custom fields that say which courses award CPD.
+        \local_cpdlog\local\course_cpd::setup_fields();
+        upgrade_plugin_savepoint(true, 2026101200, 'local', 'cpdlog');
+    }
+
     return true;
 }

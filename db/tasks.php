@@ -26,6 +26,15 @@ defined('MOODLE_INTERNAL') || die();
 
 $tasks = [
     [
+        'classname' => '\local_cpdlog\task\notify_completions_waiting',
+        'blocking' => 0,
+        'minute' => '23',
+        'hour' => '8',
+        'day' => '*',
+        'month' => '*',
+        'dayofweek' => '*',
+    ],
+    [
         'classname' => '\local_cpdlog\task\send_reminders',
         'blocking' => 0,
         'minute' => '17',

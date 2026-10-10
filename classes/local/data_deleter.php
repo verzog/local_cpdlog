@@ -236,6 +236,7 @@ final class data_deleter
         $DB->delete_records(entry::TABLE, ['userid' => $userid]);
         $DB->delete_records(target_resolver::CHOICE_TABLE, ['userid' => $userid]);
         $DB->delete_records(reminder::TABLE, ['userid' => $userid]);
+        $DB->delete_records(course_cpd::TABLE, ['userid' => $userid]);
         self::clear_staff_traces($userid);
 
         // Image blog awards that exist now are never copied back into the logbook (decision 18).
@@ -267,7 +268,7 @@ final class data_deleter
         foreach (self::staff_fields() as [$table, $field]) {
             $select = "{$field} = :staffid";
             $params = ['staffid' => $userid];
-            if ($table === entry::TABLE || $table === target_resolver::CHOICE_TABLE) {
+            if (in_array($table, [entry::TABLE, target_resolver::CHOICE_TABLE, course_cpd::TABLE], true)) {
                 // The member's own rows are deleted, not changed.
                 $select .= ' AND userid <> :userid';
                 $params['userid'] = $userid;
@@ -305,6 +306,7 @@ final class data_deleter
             [category::TABLE, 'usermodified', false],
             [period::TABLE, 'usermodified', false],
             [target::TABLE, 'usermodified', false],
+            [course_cpd::TABLE, 'actionedby', false],
         ];
     }
 }
