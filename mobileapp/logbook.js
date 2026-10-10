@@ -1,4 +1,3 @@
-<?php
 // This file is part of Moodle - https://moodle.org/
 //
 // Moodle is free software: you can redistribute it and/or modify
@@ -15,18 +14,23 @@
 // along with Moodle.  If not, see <https://www.gnu.org/licenses/>.
 
 /**
- * Version information for the CPD logbook plugin.
+ * Moodle App script for the CPD logbook screen, run with "this" as the screen.
  *
- * @package    local_cpdlog
+ * Reloads the logbook when an entry is saved on the entry form, and stops listening when the screen
+ * closes.
+ *
  * @copyright  2026 Vernon Spain
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
-defined('MOODLE_INTERNAL') || die();
+var that = this;
+var observer = this.CoreEventsProvider.on('local_cpdlog_entry_saved', function() {
+    that.refreshContent(false);
+}, this.CoreSitesProvider.getCurrentSiteId());
 
-$plugin->component = 'local_cpdlog';
-$plugin->version = 2026101300;
-$plugin->requires = 2025041400; // Moodle 5.0.
-$plugin->supported = [500, 503];
-$plugin->maturity = MATURITY_ALPHA;
-$plugin->release = '0.1.0';
+/**
+ * Stops listening for saved entries when the screen closes.
+ */
+this.ngOnDestroy = function() {
+    observer.off();
+};

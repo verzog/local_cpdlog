@@ -164,6 +164,14 @@ scoping", 24/09/2026). Where this file and the scoping document differ, this fil
     list every category in creation order and only grow, because Moodle stores the option's
     position; the label ends with the short name, which is what is read back. A staff page, _CPD
     courses_, lists the courses that award CPD with released and waiting counts.
+22. **Moodle App support as a site plugin** (agreed 10/10/2026). The logbook is in the official
+    Moodle App's main menu through `db/mobile.php`, not a custom menu item, which is a Premium
+    feature and showed the website in a frame the site's headers block. The first release lets
+    members view their progress and entries and add, edit, submit and delete entries with
+    evidence; approvals stay on the website. The logbook can be viewed offline from the app's
+    cache of the last one loaded; changes need a connection. Entries are saved through
+    `local_cpdlog_save_entry`, which applies the website form's rules (including evidence before
+    submitting) and edits descriptions as plain text, keeping a description it is not sent.
 
 ## Schema notes
 
@@ -215,7 +223,8 @@ standard, including the boilerplate sniff, with no `.phpcs.xml` overrides.
 | 7. iMIS pull | Read-only import and conflict detection | |
 | 8. Calendar and events | Period dates in the calendar, reminders (decision 19); upcoming events | In progress |
 | Image blog | Copy CPD awarded by `local_imageblog` into the logbook | Done |
-| External and course CPD | External activities (decision 20); CPD from course completions (decision 21) | In progress |
+| Moodle App | Logbook in the app: view offline, log and submit entries (decision 22) | In progress |
+| External and course CPD | External activities (decision 20); CPD from course completions (decision 21) | Done |
 
 ## Still open
 

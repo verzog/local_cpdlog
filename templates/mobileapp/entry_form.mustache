@@ -1,0 +1,99 @@
+{{!
+    This file is part of Moodle - https://moodle.org/
+
+    Moodle is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    Moodle is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with Moodle.  If not, see <https://www.gnu.org/licenses/>.
+}}
+{{!
+    @template local_cpdlog/mobileapp/entry_form
+
+    The form to log or edit a CPD activity in the Moodle App.
+
+    Rendered on the server for the app, which compiles the result as an Angular template. The
+    delimiters are switched to <% %> so that Angular's own double braces pass through. The entry's values and
+    the category and course names come from CONTENT_OTHERDATA, never from this template's context.
+
+    Context variables required for this template:
+    * externalallowed - Whether an activity outside Moodle can be logged.
+    * externalcourse - The course value that means an activity outside Moodle.
+    * maxfiles - The most evidence files allowed.
+    * maxbytes - The largest evidence file allowed, in bytes.
+    * acceptedtypes - The evidence file types allowed, comma-separated.
+
+    Example context (json):
+    {
+        "externalallowed": true,
+        "externalcourse": -1,
+        "maxfiles": 5,
+        "maxbytes": 10485760,
+        "acceptedtypes": ".pdf,.doc,.docx,.jpg,.jpeg,.png"
+    }
+}}
+{{=<% %>=}}
+<ion-list>
+    <ion-item>
+        <ion-select [(ngModel)]="CONTENT_OTHERDATA.entry.categoryid" interface="action-sheet" labelPlacement="stacked"
+                label="<%#cleanstr%> category <%/cleanstr%>" placeholder="<%#cleanstr%> choosedots <%/cleanstr%>">
+            <ion-select-option *ngFor="let category of CONTENT_OTHERDATA.categories" [value]="category.id">
+                {{ category.name }}
+            </ion-select-option>
+        </ion-select>
+    </ion-item>
+    <ion-item>
+        <ion-select [(ngModel)]="CONTENT_OTHERDATA.entry.courseid" interface="action-sheet" labelPlacement="stacked"
+                label="<%#cleanstr%> course <%/cleanstr%>" placeholder="<%#cleanstr%> choosedots <%/cleanstr%>">
+            <ion-select-option *ngFor="let course of CONTENT_OTHERDATA.courses" [value]="course.id">
+                {{ course.name }}
+            </ion-select-option>
+            <%#externalallowed%>
+            <ion-select-option [value]="<% externalcourse %>"><%#str%> externalactivity, local_cpdlog <%/str%></ion-select-option>
+            <%/externalallowed%>
+        </ion-select>
+    </ion-item>
+    <ng-container *ngIf="CONTENT_OTHERDATA.entry.courseid == <% externalcourse %>">
+        <ion-item>
+            <ion-input [(ngModel)]="CONTENT_OTHERDATA.entry.activityname" maxlength="255" labelPlacement="stacked"
+                    label="<%#cleanstr%> activityname, local_cpdlog <%/cleanstr%>"></ion-input>
+        </ion-item>
+        <ion-item>
+            <ion-input [(ngModel)]="CONTENT_OTHERDATA.entry.provider" maxlength="255" labelPlacement="stacked"
+                    label="<%#cleanstr%> provider, local_cpdlog <%/cleanstr%>"></ion-input>
+        </ion-item>
+    </ng-container>
+    <ion-item>
+        <ion-input type="date" [(ngModel)]="CONTENT_OTHERDATA.entry.activitydate" labelPlacement="stacked"
+                label="<%#cleanstr%> activitydate, local_cpdlog <%/cleanstr%>"></ion-input>
+    </ion-item>
+    <ion-item>
+        <ion-input type="number" inputmode="decimal" min="0.01" step="0.01" [(ngModel)]="CONTENT_OTHERDATA.entry.hours"
+                labelPlacement="stacked" label="<%#cleanstr%> hours, local_cpdlog <%/cleanstr%>"></ion-input>
+    </ion-item>
+    <ion-item>
+        <ion-textarea [(ngModel)]="CONTENT_OTHERDATA.entry.description" [autoGrow]="true" rows="4" labelPlacement="stacked"
+                label="<%#cleanstr%> description <%/cleanstr%>"></ion-textarea>
+    </ion-item>
+</ion-list>
+
+<core-attachments [files]="CONTENT_OTHERDATA.files" [maxSize]="<% maxbytes %>" [maxSubmissions]="<% maxfiles %>"
+        component="local_cpdlog" [componentId]="CONTENT_OTHERDATA.entry.id" acceptedTypes="<% acceptedtypes %>"
+        [allowOffline]="false" title="<%#cleanstr%> evidence, local_cpdlog <%/cleanstr%>">
+</core-attachments>
+
+<div class="ion-padding">
+    <ion-button expand="block" fill="outline" (click)="saveEntry(false)">
+        <%#str%> savedraft, local_cpdlog <%/str%>
+    </ion-button>
+    <ion-button expand="block" (click)="saveEntry(true)">
+        <%#str%> saveandsubmit, local_cpdlog <%/str%>
+    </ion-button>
+</div>

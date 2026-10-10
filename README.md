@@ -16,6 +16,7 @@ agreed design decisions and the build plan.
 - [Setting up the plugin](#setting-up-the-plugin)
 - [Capabilities](#capabilities)
 - [Using the logbook (members)](#using-the-logbook-members)
+- [Moodle App](#moodle-app)
 - [Approving CPD (approvers)](#approving-cpd-approvers)
 - [Staff reports](#staff-reports)
 - [Calendar and reminders](#calendar-and-reminders)
@@ -211,6 +212,35 @@ download it, and files are always downloaded rather than opened in the browser.
 
 Entries copied from the image blog are shown read-only, marked _From the image blog_. Entries
 imported from iMIS will be shown the same way once the iMIS link is built.
+
+## Moodle App
+
+Members can use their logbook in the official Moodle App. It needs no Premium subscription, no
+custom menu item and no settings: once the plugin is installed, _My CPD logbook_ appears in the
+app's main menu (under _More_) for everyone who has a logbook (`local/cpdlog:viewown`). Members
+may need to log out of the app and back in, or pull down to refresh the site, the first time.
+
+In the app, members can:
+
+- see their progress against their targets, and choose another reporting period;
+- see their entries with their status, rejection or reversal reasons and evidence;
+- log a new activity, or edit a draft or rejected entry, attaching evidence from the phone's
+  camera, photos or files, then save it as a draft or submit it for review;
+- submit or delete drafts.
+
+The same rules apply as on the website, and the server checks them again. Descriptions are edited
+as plain text in the app; one written on the website keeps its formatting unless it is changed in
+the app.
+
+**Offline:** the app keeps the last logbook it loaded, so members can still view it without a
+connection. Logging, editing, submitting and deleting entries need a connection.
+
+**For developers:** `db/mobile.php` adds the main menu item, `classes/output/mobile.php` builds
+the screens from the templates in `templates/mobileapp/` and the scripts in `mobileapp/`, and the
+app saves entries through the web services `local_cpdlog_save_entry`, `local_cpdlog_submit_entry`
+and `local_cpdlog_delete_entry`, which are added to the Moodle mobile web service. Anything a member
+or staff member typed is passed to the app as data, never written into a template, because the
+app compiles templates as Angular code.
 
 ## Approving CPD (approvers)
 
