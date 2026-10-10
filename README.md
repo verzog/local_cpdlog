@@ -249,7 +249,8 @@ Moodle courses can add CPD to members' logbooks automatically when they are comp
    category use _Settings > Default category for course CPD_.
 2. When a member completes the course (by Moodle course completion), a CPD entry is created for
    those hours, dated on the completion date, and sent to the approval queue. Approvers are
-   notified and check it like any other entry.
+   notified and check it like any other entry. The completion counts as its evidence, so this
+   happens even in a category marked _Evidence required_.
 3. The hourly task _Create CPD entries for course completions_ also adds past completions and any
    that were missed, without notifying approvers, so turning this on does not flood the queue
    with notifications.

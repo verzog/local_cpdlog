@@ -159,7 +159,8 @@ scoping", 24/09/2026). Where this file and the scoping document differ, this fil
     before a deletion, or while one is queued) stops re-creation. The select field's options list
     every category in creation order and only grow, because Moodle stores the option's position;
     the label ends with the short name, which is what is read back. A staff page, _CPD courses_,
-    lists the courses that award CPD.
+    lists the courses that award CPD. The completion itself is the evidence: these entries go
+    to approval even in a category marked _Evidence required_ (agreed 10/10/2026).
 
 ## Schema notes
 
