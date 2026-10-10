@@ -15,7 +15,10 @@
 // along with Moodle.  If not, see <https://www.gnu.org/licenses/>.
 
 /**
- * Version information for the CPD logbook plugin.
+ * Moodle App support: adds the CPD logbook to the app's main menu.
+ *
+ * The app keeps the last logbook it loaded, so members can still view it offline. Adding and
+ * changing entries needs a connection.
  *
  * @package    local_cpdlog
  * @copyright  2026 Vernon Spain
@@ -24,9 +27,23 @@
 
 defined('MOODLE_INTERNAL') || die();
 
-$plugin->component = 'local_cpdlog';
-$plugin->version = 2026101300;
-$plugin->requires = 2025041400; // Moodle 5.0.
-$plugin->supported = [500, 503];
-$plugin->maturity = MATURITY_ALPHA;
-$plugin->release = '0.1.0';
+$addons = [
+    'local_cpdlog' => [
+        'handlers' => [
+            'logbook' => [
+                'delegate' => 'CoreMainMenuDelegate',
+                'init' => 'mobile_init',
+                'method' => 'mobile_logbook',
+                'displaydata' => [
+                    'title' => 'mylogbook',
+                    'icon' => 'fas-book',
+                    'class' => '',
+                ],
+                'priority' => 700,
+            ],
+        ],
+        'lang' => [
+            ['mylogbook', 'local_cpdlog'],
+        ],
+    ],
+];

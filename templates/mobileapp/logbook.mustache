@@ -1,0 +1,114 @@
+{{!
+    This file is part of Moodle - https://moodle.org/
+
+    Moodle is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    Moodle is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with Moodle.  If not, see <https://www.gnu.org/licenses/>.
+}}
+{{!
+    @template local_cpdlog/mobileapp/logbook
+
+    The member's CPD logbook in the Moodle App: progress in a period, and their entries.
+
+    Rendered on the server for the app, which compiles the result as an Angular template. The
+    delimiters are switched to <% %> so that Angular's own double braces pass through. Everything a member or
+    staff member typed comes from CONTENT_OTHERDATA, never from this template's context.
+
+    Context variables required for this template:
+    * cansubmit - Whether the member may log entries.
+
+    Example context (json):
+    {
+        "cansubmit": true
+    }
+}}
+{{=<% %>=}}
+<ion-list *ngIf="CONTENT_OTHERDATA.periods.length > 1">
+    <ion-item>
+        <ion-select [(ngModel)]="CONTENT_OTHERDATA.periodid" interface="action-sheet" labelPlacement="stacked"
+                label="<%#cleanstr%> reportingperiod, local_cpdlog <%/cleanstr%>"
+                (ionChange)="updateContent({periodid: CONTENT_OTHERDATA.periodid})">
+            <ion-select-option *ngFor="let period of CONTENT_OTHERDATA.periods" [value]="period.id">
+                {{ period.name }}
+            </ion-select-option>
+        </ion-select>
+    </ion-item>
+</ion-list>
+
+<ion-card *ngIf="CONTENT_OTHERDATA.progress">
+    <ion-card-header>
+        <ion-card-title>{{ CONTENT_OTHERDATA.progress.heading }}</ion-card-title>
+    </ion-card-header>
+    <ion-card-content>
+        <p>{{ CONTENT_OTHERDATA.progress.totals }}</p>
+        <div *ngFor="let target of CONTENT_OTHERDATA.progress.targets" class="ion-margin-top">
+            <p>
+                <strong>{{ target.name }}</strong>
+                <ion-badge *ngIf="target.met" color="success"><%#str%> targetmet, local_cpdlog <%/str%></ion-badge>
+            </p>
+            <ion-progress-bar [value]="target.percent / 100" [color]="target.met ? 'success' : 'primary'"></ion-progress-bar>
+            <p>{{ target.summary }}</p>
+            <p *ngIf="target.pending">{{ target.pending }}</p>
+        </div>
+        <p *ngIf="!CONTENT_OTHERDATA.progress.hastargets"><%#str%> notargets, local_cpdlog <%/str%></p>
+    </ion-card-content>
+</ion-card>
+
+<%#cansubmit%>
+<div class="ion-padding-horizontal">
+    <ion-button expand="block" core-site-plugins-new-content component="local_cpdlog" method="mobile_entry_form"
+            [args]="{}" title="<%#cleanstr%> addentry, local_cpdlog <%/cleanstr%>">
+        <ion-icon name="fas-plus" slot="start" aria-hidden="true"></ion-icon>
+        <%#str%> addentry, local_cpdlog <%/str%>
+    </ion-button>
+</div>
+<%/cansubmit%>
+
+<ion-card *ngFor="let entry of CONTENT_OTHERDATA.entries">
+    <ion-item lines="none">
+        <ion-label>
+            <h2>{{ entry.activity }}</h2>
+            <p>{{ entry.date }} · {{ entry.category }}</p>
+            <p><%#str%> hours, local_cpdlog <%/str%>: {{ entry.hours }}</p>
+        </ion-label>
+        <ion-badge slot="end" [color]="entry.colour">{{ entry.status }}</ion-badge>
+    </ion-item>
+    <ion-card-content>
+        <p *ngIf="entry.source"><ion-badge color="light">{{ entry.source }}</ion-badge></p>
+        <p *ngIf="entry.reason">{{ entry.reason }}</p>
+        <p *ngIf="entry.evidenceneeded"><ion-text color="danger"><%#str%> evidenceneeded, local_cpdlog <%/str%></ion-text></p>
+        <core-files *ngIf="entry.files.length" [files]="entry.files" component="local_cpdlog" [componentId]="entry.id">
+        </core-files>
+        <div *ngIf="entry.canedit">
+            <ion-button fill="outline" size="small" core-site-plugins-new-content component="local_cpdlog"
+                    method="mobile_entry_form" [args]="{id: entry.id}" title="<%#cleanstr%> editentry, local_cpdlog <%/cleanstr%>">
+                <%#str%> edit <%/str%>
+            </ion-button>
+            <ion-button *ngIf="entry.cansubmit" size="small" core-site-plugins-call-ws name="local_cpdlog_submit_entry"
+                    [params]="{id: entry.id}" [preSets]="{getFromCache: 0, saveToCache: 0}"
+                    confirmMessage="<%#cleanstr%> confirmsubmitentry, local_cpdlog <%/cleanstr%>"
+                    successMessage="<%#cleanstr%> entrysubmitted, local_cpdlog <%/cleanstr%>" refreshOnSuccess="true">
+                <%#str%> submit <%/str%>
+            </ion-button>
+            <ion-button *ngIf="entry.candelete" size="small" fill="outline" color="danger" core-site-plugins-call-ws
+                    name="local_cpdlog_delete_entry" [params]="{id: entry.id}" [preSets]="{getFromCache: 0, saveToCache: 0}"
+                    confirmMessage="<%#cleanstr%> confirmdeleteentry, local_cpdlog <%/cleanstr%>"
+                    successMessage="<%#cleanstr%> entrydeleted, local_cpdlog <%/cleanstr%>" refreshOnSuccess="true">
+                <%#str%> delete <%/str%>
+            </ion-button>
+        </div>
+    </ion-card-content>
+</ion-card>
+
+<core-empty-box *ngIf="!CONTENT_OTHERDATA.entries.length" icon="fas-book"
+        message="<%#cleanstr%> noentries, local_cpdlog <%/cleanstr%>">
+</core-empty-box>
