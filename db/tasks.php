@@ -26,10 +26,10 @@ defined('MOODLE_INTERNAL') || die();
 
 $tasks = [
     [
-        'classname' => '\local_cpdlog\task\award_course_cpd',
+        'classname' => '\local_cpdlog\task\notify_completions_waiting',
         'blocking' => 0,
         'minute' => '23',
-        'hour' => '*',
+        'hour' => '8',
         'day' => '*',
         'month' => '*',
         'dayofweek' => '*',

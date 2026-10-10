@@ -268,7 +268,7 @@ final class data_deleter
         foreach (self::staff_fields() as [$table, $field]) {
             $select = "{$field} = :staffid";
             $params = ['staffid' => $userid];
-            if ($table === entry::TABLE || $table === target_resolver::CHOICE_TABLE) {
+            if (in_array($table, [entry::TABLE, target_resolver::CHOICE_TABLE, course_cpd::TABLE], true)) {
                 // The member's own rows are deleted, not changed.
                 $select .= ' AND userid <> :userid';
                 $params['userid'] = $userid;
@@ -306,6 +306,7 @@ final class data_deleter
             [category::TABLE, 'usermodified', false],
             [period::TABLE, 'usermodified', false],
             [target::TABLE, 'usermodified', false],
+            [course_cpd::TABLE, 'actionedby', false],
         ];
     }
 }

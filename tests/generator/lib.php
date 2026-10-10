@@ -138,6 +138,25 @@ class local_cpdlog_generator extends component_generator_base
     }
 
     /**
+     * Records a member's completion of a course, as course completion tracking does.
+     *
+     * @param array $record user (username), course (short name) and day (DD/MM/YYYY, default today).
+     * @return int The completion id.
+     */
+    public function create_course_completion(array $record): int {
+        global $DB;
+        $userid = $DB->get_field('user', 'id', ['username' => $record['user']], MUST_EXIST);
+        $courseid = $DB->get_field('course', 'id', ['shortname' => $record['course']], MUST_EXIST);
+        return (int) $DB->insert_record('course_completions', (object) [
+            'userid' => $userid,
+            'course' => $courseid,
+            'timeenrolled' => 0,
+            'timestarted' => 0,
+            'timecompleted' => isset($record['day']) ? self::parse_day($record['day']) + 10 * HOURSECS : time(),
+        ]);
+    }
+
+    /**
      * Records a CPD award in the image blog's own tables, as local_imageblog does on a revealed case.
      *
      * @param array $record user (username), case (post title, created if new), reason (participation,

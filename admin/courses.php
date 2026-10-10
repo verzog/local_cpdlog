@@ -44,15 +44,18 @@ if (!$field) {
     die();
 }
 
-// Entries created are counted once for all courses, rather than per course.
+// Released entries are counted once for all courses, rather than per course.
 $sql = 'SELECT c.id, c.fullname, c.shortname, c.visible, COALESCE(l.awarded, 0) AS awarded
           FROM {course} c
           JOIN {customfield_data} d ON d.instanceid = c.id AND d.fieldid = :fieldid AND d.decvalue > 0
      LEFT JOIN (SELECT courseid, COUNT(1) AS awarded
                   FROM {' . course_cpd::TABLE . '}
+                 WHERE status = :released
               GROUP BY courseid) l ON l.courseid = c.id
       ORDER BY c.fullname, c.id';
-$courses = $DB->get_records_sql($sql, ['fieldid' => $field->get('id')]);
+$courses = $DB->get_records_sql($sql, ['fieldid' => $field->get('id'), 'released' => course_cpd::STATUS_RELEASED]);
+$waiting = course_cpd::count_waiting();
+$canrelease = has_capability('local/cpdlog:approve', context_system::instance());
 
 $table = new html_table();
 $table->head = [
@@ -60,6 +63,7 @@ $table->head = [
     get_string('hours', 'local_cpdlog'),
     get_string('category'),
     get_string('cpdcourses:awarded', 'local_cpdlog'),
+    get_string('release:waiting', 'local_cpdlog'),
     get_string('actions'),
 ];
 $table->attributes['class'] = 'generaltable local-cpdlog-courses';
@@ -69,15 +73,22 @@ foreach ($courses as $course) {
     if (!$course->visible) {
         $name .= ' ' . html_writer::span(get_string('hiddenfromstudents'), 'badge bg-secondary');
     }
+    // Approvers release completions from the course's checklist.
+    $actions = [];
+    if ($canrelease) {
+        $actions[] = html_writer::link(
+            new moodle_url('/local/cpdlog/admin/release.php', ['courseid' => $course->id]),
+            get_string('release:link', 'local_cpdlog')
+        );
+    }
+    $actions[] = html_writer::link(new moodle_url('/course/edit.php', ['id' => $course->id]), get_string('editcoursesettings'));
     $table->data[] = [
         html_writer::link(new moodle_url('/course/view.php', ['id' => $course->id]), $name),
         format_float($cpd->hours, 2),
         format_string($cpd->category->get('name')),
         $course->awarded,
-        html_writer::link(
-            new moodle_url('/course/edit.php', ['id' => $course->id]),
-            get_string('editcoursesettings')
-        ),
+        $waiting[$course->id] ?? 0,
+        implode(html_writer::empty_tag('br'), $actions),
     ];
 }
 

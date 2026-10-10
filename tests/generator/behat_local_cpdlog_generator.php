@@ -54,6 +54,11 @@ class behat_local_cpdlog_generator extends behat_generator_base
                 'datagenerator' => 'imageblog_award',
                 'required' => ['user'],
             ],
+            'course completions' => [
+                'singular' => 'course completion',
+                'datagenerator' => 'course_completion',
+                'required' => ['user', 'course'],
+            ],
             'deleted accounts' => [
                 'singular' => 'deleted account',
                 'datagenerator' => 'deleted_account',

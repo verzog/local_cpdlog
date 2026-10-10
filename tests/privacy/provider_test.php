@@ -284,31 +284,44 @@ final class provider_test extends \core_privacy\tests\provider_testcase
     }
 
     /**
-     * Course completions that created an entry are declared, listed and exported, and kept on request.
+     * Released and excluded course completions are listed and exported to the member, and as an
+     * action to the staff member; they are kept on request.
      */
     public function test_completions(): void {
         global $DB;
         $this->resetAfterTest();
         $member = $this->getDataGenerator()->create_user();
+        $staff = $this->getDataGenerator()->create_user();
         $course = $this->getDataGenerator()->create_course(['fullname' => 'Dermoscopy basics']);
-        $DB->insert_record('local_cpdlog_completion', (object) [
+        $completionid = $DB->insert_record('local_cpdlog_completion', (object) [
             'userid' => $member->id,
             'courseid' => $course->id,
-            'entryid' => 5,
+            'entryid' => null,
+            'status' => 'excluded',
             'timecompleted' => time(),
+            'actionedby' => $staff->id,
             'timecreated' => time(),
+            'timemodified' => time(),
         ]);
         $system = \context_system::instance();
 
         $this->assertEquals([$system->id], provider::get_contexts_for_userid($member->id)->get_contextids());
+        $this->assertEquals([$system->id], provider::get_contexts_for_userid($staff->id)->get_contextids());
         $userlist = new userlist($system, 'local_cpdlog');
         provider::get_users_in_context($userlist);
-        $this->assertEquals([$member->id], $userlist->get_userids());
+        $this->assertEqualsCanonicalizing([$member->id, $staff->id], $userlist->get_userids());
 
         $this->export_context_data_for_user($member->id, $system, 'local_cpdlog');
         $component = get_string('pluginname', 'local_cpdlog');
         $data = writer::with_context($system)->get_data([$component, get_string('privacy:completions', 'local_cpdlog')]);
         $this->assertSame('Dermoscopy basics', $data->completions[0]->course);
+        $this->assertSame('excluded', $data->completions[0]->status);
+
+        writer::reset();
+        $this->export_context_data_for_user($staff->id, $system, 'local_cpdlog');
+        $actions = writer::with_context($system)->get_data([$component, get_string('privacy:staffactions', 'local_cpdlog')]);
+        $this->assertEquals($completionid, $actions->actions[0]->completionid);
+        $this->assertObjectHasProperty('excluded', $actions->actions[0]);
 
         provider::delete_data_for_user(new approved_contextlist($member, 'local_cpdlog', [$system->id]));
         $this->assertSame(1, $DB->count_records('local_cpdlog_completion'));

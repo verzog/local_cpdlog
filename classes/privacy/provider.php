@@ -114,8 +114,10 @@ class provider implements
             'userid' => 'privacy:metadata:local_cpdlog_completion:userid',
             'courseid' => 'privacy:metadata:local_cpdlog_completion:courseid',
             'entryid' => 'privacy:metadata:local_cpdlog_completion:entryid',
+            'status' => 'privacy:metadata:local_cpdlog_completion:status',
             'timecompleted' => 'privacy:metadata:local_cpdlog_completion:timecompleted',
-            'timecreated' => 'privacy:metadata:local_cpdlog_completion:timecreated',
+            'actionedby' => 'privacy:metadata:local_cpdlog_completion:actionedby',
+            'timemodified' => 'privacy:metadata:local_cpdlog_completion:timemodified',
         ], 'privacy:metadata:local_cpdlog_completion');
         $collection->add_subsystem_link('core_files', [], 'privacy:metadata:core_files');
         $collection->add_subsystem_link('core_message', [], 'privacy:metadata:core_message');
@@ -166,6 +168,7 @@ class provider implements
         }
         $userlist->add_from_sql('userid', 'SELECT userid FROM {local_cpdlog_reminder}', []);
         $userlist->add_from_sql('userid', 'SELECT userid FROM {local_cpdlog_completion}', []);
+        $userlist->add_from_sql('actionedby', 'SELECT actionedby FROM {local_cpdlog_completion} WHERE actionedby > 0', []);
         foreach (self::CONFIG_TABLES as $table) {
             $userlist->add_from_sql('usermodified', "SELECT usermodified FROM {{$table}} WHERE usermodified > 0", []);
         }
@@ -271,7 +274,7 @@ class provider implements
 
         // Course completions that created a CPD entry.
         $completions = [];
-        $sql = 'SELECT l.id, c.fullname, l.entryid, l.timecompleted, l.timecreated
+        $sql = 'SELECT l.id, c.fullname, l.entryid, l.status, l.timecompleted, l.timemodified
                   FROM {local_cpdlog_completion} l
              LEFT JOIN {course} c ON c.id = l.courseid
                  WHERE l.userid = :userid
@@ -280,8 +283,9 @@ class provider implements
             $completions[] = (object) [
                 'course' => $completion->fullname === null ? null : format_string($completion->fullname),
                 'entryid' => $completion->entryid,
+                'status' => $completion->status,
                 'timecompleted' => transform::datetime($completion->timecompleted),
-                'timecreated' => transform::datetime($completion->timecreated),
+                'timedecided' => transform::datetime($completion->timemodified),
             ];
         }
         if ($completions) {
@@ -305,6 +309,12 @@ class provider implements
         }
         foreach ($DB->get_records('local_cpdlog_cohortchoice', ['chosenby' => $userid]) as $choice) {
             $actions[] = (object) ['cohortchoiceid' => $choice->id, 'chosen' => transform::datetime($choice->timemodified)];
+        }
+        foreach ($DB->get_records('local_cpdlog_completion', ['actionedby' => $userid]) as $completion) {
+            $actions[] = (object) [
+                'completionid' => $completion->id,
+                $completion->status => transform::datetime($completion->timemodified),
+            ];
         }
         foreach ($DB->get_records('local_cpdlog_deletion', ['requestedby' => $userid]) as $deletion) {
             $actions[] = (object) ['deletionid' => $deletion->id, 'requested' => transform::datetime($deletion->timerequested)];
@@ -387,7 +397,8 @@ class provider implements
         if ($DB->record_exists('local_cpdlog_reminder', ['userid' => $userid])) {
             return true;
         }
-        if ($DB->record_exists('local_cpdlog_completion', ['userid' => $userid])) {
+        $select = 'userid = :u1 OR actionedby = :u2';
+        if ($DB->record_exists_select('local_cpdlog_completion', $select, ['u1' => $userid, 'u2' => $userid])) {
             return true;
         }
         foreach (self::CONFIG_TABLES as $table) {

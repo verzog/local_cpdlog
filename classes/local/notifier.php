@@ -125,6 +125,60 @@ final class notifier
     }
 
     /**
+     * Tells every active approver which courses have completions waiting to be released.
+     *
+     * @param \stdClass[] $courses The courses, with id and fullname.
+     * @param int[] $waiting How many completions wait, keyed by course id.
+     * @return int How many approvers were told.
+     */
+    public static function completions_waiting(array $courses, array $waiting): int {
+        $approvers = get_users_by_capability(
+            \context_system::instance(),
+            'local/cpdlog:approve',
+            'u.id, u.lang, u.suspended, u.deleted'
+        );
+        $url = new \moodle_url('/local/cpdlog/admin/courses.php');
+        $told = 0;
+        foreach ($approvers as $approver) {
+            if ($approver->suspended || $approver->deleted) {
+                continue;
+            }
+            $oldlang = force_current_language($approver->lang ?? '');
+            try {
+                $items = '';
+                foreach ($courses as $course) {
+                    $items .= \html_writer::tag('li', get_string('message:completionswaiting:course', 'local_cpdlog', (object) [
+                        'course' => s(format_string($course->fullname, true, ['escape' => false])),
+                        'count' => $waiting[$course->id] ?? 0,
+                    ]));
+                }
+                $subject = get_string('message:completionswaiting:subject', 'local_cpdlog', array_sum($waiting));
+                $body = get_string('message:completionswaiting:body', 'local_cpdlog', \html_writer::tag('ul', $items));
+                $urlname = get_string('cpdcourses', 'local_cpdlog');
+            } finally {
+                force_current_language($oldlang);
+            }
+            $message = new \core\message\message();
+            $message->component = 'local_cpdlog';
+            $message->name = 'completionswaiting';
+            $message->userfrom = \core_user::get_noreply_user();
+            $message->userto = (int) $approver->id;
+            $message->subject = $subject;
+            $message->fullmessage = html_to_text($body);
+            $message->fullmessageformat = FORMAT_PLAIN;
+            $message->fullmessagehtml = $body;
+            $message->smallmessage = $subject;
+            $message->notification = 1;
+            $message->contexturl = $url->out(false);
+            $message->contexturlname = $urlname;
+            if (message_send($message) !== false) {
+                $told++;
+            }
+        }
+        return $told;
+    }
+
+    /**
      * Sends one notification, written in the recipient's language.
      *
      * @param string $provider The message provider in db/messages.php: entryoutcome or entrysubmitted.

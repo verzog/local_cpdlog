@@ -15,7 +15,7 @@
 // along with Moodle.  If not, see <https://www.gnu.org/licenses/>.
 
 /**
- * Creates CPD entries automatically when members complete courses that award CPD.
+ * Releases course completions to members' CPD logbooks, as staff choose.
  *
  * @package    local_cpdlog
  * @copyright  2026 Vernon Spain
@@ -25,24 +25,25 @@
 namespace local_cpdlog\local;
 
 use local_cpdlog\event\entry_created;
-use local_cpdlog\event\entry_submitted;
+use local_cpdlog\event\entry_approved;
 use local_cpdlog\persistent\category;
 use local_cpdlog\persistent\entry;
 
 /**
- * Creates CPD entries automatically when members complete courses that award CPD.
+ * Releases course completions to members' CPD logbooks, as staff choose.
  *
  * A course awards CPD when its "CPD hours" custom field is above zero; its "CPD category" field
  * says which CPD category, falling back to the setting local_cpdlog/completioncategory. Hours above
- * the site's maximum per entry are capped at it. When a member
- * completes such a course, an entry for those hours is created at the completion date and submitted
- * for approval, so an approver checks it like any other entry (decision 21). The completion event
- * creates it at once; an hourly task also catches past completions and any the event missed.
+ * the site's maximum per entry are capped at it.
  *
- * Each completion creates at most one entry, recorded in local_cpdlog_completion, so an entry the
- * member later deletes is not created again. Completions are skipped while a deletion of the
+ * Nothing is added automatically (decision 21). Members who complete such a course wait on the
+ * course's release checklist until an approver releases them, which adds an approved entry for
+ * those hours at the completion date with the approver as its reviewer, or excludes them, which
+ * keeps them out until someone releases them later. local_cpdlog_completion records each decision,
+ * so a completion is released at most once. Completions are held back while a deletion of the
  * member's CPD data is queued, or if they happened before one ran, and wait while no open reporting
- * period covers their date. The setting local_cpdlog/completionenabled switches it off.
+ * period covers their date. Approvers get a notice when new completions are waiting. The setting
+ * local_cpdlog/completionenabled switches it all off.
  *
  * The two custom fields belong to the "CPD logbook" course custom field category. The options of
  * the category field list every CPD category in creation order, as "Name (SHORTNAME)", and only ever
@@ -60,8 +61,11 @@ final class course_cpd
     /** @var string Short name of the course custom field holding the CPD category. */
     const FIELD_CATEGORY = 'cpdlog_category';
 
-    /** @var int Most completions handled in one run of the task; the rest go on the next run. */
-    const BATCH = 500;
+    /** @var string A completion released to the member's logbook as an approved entry. */
+    const STATUS_RELEASED = 'released';
+
+    /** @var string A completion staff chose not to release; it can still be released later. */
+    const STATUS_EXCLUDED = 'excluded';
 
     /**
      * Whether completions create entries.
@@ -281,24 +285,110 @@ final class course_cpd
     }
 
     /**
-     * Creates and submits the entry for one completion, if it awards CPD and has not done so already.
+     * Returns the completions of a course that wait to be released or excluded.
      *
-     * Runs under the per-member lock that queuing a deletion of their CPD data takes.
+     * Members whose CPD data deletion is queued, or ran after they completed, are left out.
+     *
+     * @param int $courseid The course.
+     * @return \stdClass[] One per member: userid, timecompleted, the user name fields, and releasable
+     *                     (whether an open reporting period covers the completion date).
+     */
+    public static function get_waiting(int $courseid): array {
+        global $DB;
+        $names = \core_user\fields::for_name()->get_sql('u', true);
+        $sql = "SELECT cc.userid, cc.timecompleted, u.email {$names->selects}
+                  FROM {course_completions} cc
+                  JOIN {user} u ON u.id = cc.userid AND u.deleted = 0
+                 WHERE cc.course = :courseid AND cc.timecompleted > 0
+                   AND NOT EXISTS (SELECT 1 FROM {" . self::TABLE . "} l WHERE l.userid = cc.userid AND l.courseid = cc.course)
+                   AND NOT EXISTS (SELECT 1 FROM {" . data_deleter::TABLE . "} x
+                                    WHERE x.userid = cc.userid
+                                      AND (x.status = :queued OR (x.status = :done AND x.timecompleted >= cc.timecompleted)))
+              ORDER BY u.lastname, u.firstname, u.id";
+        $params = $names->params + [
+            'courseid' => $courseid,
+            'queued' => data_deleter::STATUS_QUEUED,
+            'done' => data_deleter::STATUS_DONE,
+        ];
+        $waiting = $DB->get_records_sql($sql, $params);
+        foreach ($waiting as $row) {
+            $period = entry_manager::find_period((int) $row->timecompleted);
+            $row->releasable = $period && !$period->is_closed();
+        }
+        return $waiting;
+    }
+
+    /**
+     * Returns the members excluded from a course's CPD, with who excluded them.
+     *
+     * @param int $courseid The course.
+     * @return \stdClass[] One per member: userid, timecompleted, timemodified, the member's name fields,
+     *                     and the staff member's name fields prefixed "staff".
+     */
+    public static function get_excluded(int $courseid): array {
+        global $DB;
+        $names = \core_user\fields::for_name();
+        $member = $names->get_sql('u', true);
+        $staff = $names->get_sql('s', true, 'staff', 'staffid', false);
+        $sql = "SELECT l.userid, l.timecompleted, l.timemodified, u.email {$member->selects}, {$staff->selects}
+                  FROM {" . self::TABLE . "} l
+                  JOIN {user} u ON u.id = l.userid
+             LEFT JOIN {user} s ON s.id = l.actionedby
+                 WHERE l.courseid = :courseid AND l.status = :excluded
+              ORDER BY u.lastname, u.firstname, u.id";
+        return $DB->get_records_sql($sql, $member->params + $staff->params + [
+            'courseid' => $courseid,
+            'excluded' => self::STATUS_EXCLUDED,
+        ]);
+    }
+
+    /**
+     * Counts each course's completions waiting to be released, for the courses that award CPD.
+     *
+     * @return int[] Counts keyed by course id; courses with none waiting are left out.
+     */
+    public static function count_waiting(): array {
+        global $DB;
+        $field = self::get_field(self::FIELD_HOURS);
+        if (!$field) {
+            return [];
+        }
+        $sql = 'SELECT cc.course, COUNT(1) AS waiting
+                  FROM {course_completions} cc
+                  JOIN {customfield_data} d ON d.instanceid = cc.course AND d.fieldid = :fieldid AND d.decvalue > 0
+                  JOIN {user} u ON u.id = cc.userid AND u.deleted = 0
+                 WHERE cc.timecompleted > 0
+                   AND NOT EXISTS (SELECT 1 FROM {' . self::TABLE . '} l WHERE l.userid = cc.userid AND l.courseid = cc.course)
+                   AND NOT EXISTS (SELECT 1 FROM {' . data_deleter::TABLE . '} x
+                                    WHERE x.userid = cc.userid
+                                      AND (x.status = :queued OR (x.status = :done AND x.timecompleted >= cc.timecompleted)))
+              GROUP BY cc.course';
+        $params = ['fieldid' => $field->get('id'), 'queued' => data_deleter::STATUS_QUEUED, 'done' => data_deleter::STATUS_DONE];
+        return array_map('intval', $DB->get_records_sql_menu($sql, $params));
+    }
+
+    /**
+     * Releases a member's completion of a course to their logbook as an approved entry.
+     *
+     * The staff member releasing it is recorded as its reviewer, and the member is told. Runs under
+     * the per-member lock that queuing a deletion of their CPD data takes. A member excluded earlier
+     * can be released.
      *
      * @param int $userid The member.
      * @param int $courseid The course.
-     * @param int $timecompleted When they completed it.
-     * @param bool $notify Whether to tell approvers; false when catching up on past completions.
-     * @return string What happened: created, exists, skipped (waits for a later run) or none (awards no CPD).
+     * @param int $staffid The staff member releasing it.
+     * @return string What happened: released, exists (already released), or skipped (no completion,
+     *                no CPD for the course, switched off, blocked by a deletion, or no open period).
      */
-    public static function award(int $userid, int $courseid, int $timecompleted, bool $notify): string {
+    public static function release(int $userid, int $courseid, int $staffid): string {
         global $DB;
         if (!self::is_enabled()) {
-            return 'none';
+            return 'skipped';
         }
         $cpd = self::get_course_cpd($courseid);
-        if (!$cpd) {
-            return 'none';
+        $timecompleted = (int) $DB->get_field('course_completions', 'timecompleted', ['userid' => $userid, 'course' => $courseid]);
+        if (!$cpd || !$timecompleted) {
+            return 'skipped';
         }
         $lock = \core\lock\lock_config::get_lock_factory(data_deleter::LOCK_TYPE)
             ->get_lock(data_deleter::lock_key($userid), 5);
@@ -306,11 +396,11 @@ final class course_cpd
             return 'skipped';
         }
         try {
-            // The log, or the entry itself if a privacy request has cleared the log.
+            $log = $DB->get_record(self::TABLE, ['userid' => $userid, 'courseid' => $courseid]);
             $ref = 'completion:' . $courseid . ':' . $userid;
             $entryparams = ['source' => entry::SOURCE_MOODLE, 'ref' => $ref];
             if (
-                $DB->record_exists(self::TABLE, ['userid' => $userid, 'courseid' => $courseid])
+                ($log && $log->status === self::STATUS_RELEASED)
                 || entry::record_exists_select('source = :source AND externalref = :ref', $entryparams)
             ) {
                 return 'exists';
@@ -318,13 +408,14 @@ final class course_cpd
             if (self::blocked_by_deletion($userid, $timecompleted)) {
                 return 'skipped';
             }
-            // A closed period's entries cannot be reviewed, so the completion waits until it reopens.
+            // Entries in a closed period cannot be changed, so the completion waits until it reopens.
             $period = entry_manager::find_period($timecompleted);
             if (!$period || $period->is_closed()) {
                 return 'skipped';
             }
             $course = $DB->get_record('course', ['id' => $courseid], 'id, fullname', MUST_EXIST);
 
+            $now = time();
             $transaction = $DB->start_delegated_transaction();
             $entry = (new entry(0, (object) [
                 'userid' => $userid,
@@ -336,28 +427,65 @@ final class course_cpd
                 'activitydate' => $timecompleted,
                 'description' => get_string('coursecompleted:description', 'local_cpdlog', $course->fullname),
                 'descriptionformat' => FORMAT_PLAIN,
-                'status' => entry::STATUS_SUBMITTED,
+                'status' => entry::STATUS_APPROVED,
                 'source' => entry::SOURCE_MOODLE,
                 'externalref' => $ref,
-                'timesubmitted' => time(),
+                'timesubmitted' => $now,
+                'reviewedby' => $staffid,
+                'timereviewed' => $now,
             ]))->create();
-            $DB->insert_record(self::TABLE, (object) [
+            $record = (object) [
                 'userid' => $userid,
                 'courseid' => $courseid,
                 'entryid' => $entry->get('id'),
+                'status' => self::STATUS_RELEASED,
                 'timecompleted' => $timecompleted,
-                'timecreated' => time(),
-            ]);
+                'actionedby' => $staffid,
+                'timemodified' => $now,
+            ];
+            if ($log) {
+                $record->id = $log->id;
+                $DB->update_record(self::TABLE, $record);
+            } else {
+                $record->timecreated = $now;
+                $DB->insert_record(self::TABLE, $record);
+            }
             entry_created::create_from_entry($entry)->trigger();
-            entry_submitted::create_from_entry($entry)->trigger();
+            entry_approved::create_from_entry($entry)->trigger();
             $transaction->allow_commit();
         } finally {
             $lock->release();
         }
-        if ($notify) {
-            notifier::entry_submitted($entry);
+        notifier::entry_reviewed($entry);
+        return 'released';
+    }
+
+    /**
+     * Excludes a member's completion of a course, so it is not released; it can be released later.
+     *
+     * @param int $userid The member.
+     * @param int $courseid The course.
+     * @param int $staffid The staff member excluding it.
+     * @return bool Whether it was excluded; false if already released or excluded, or not completed.
+     */
+    public static function exclude(int $userid, int $courseid, int $staffid): bool {
+        global $DB;
+        $timecompleted = (int) $DB->get_field('course_completions', 'timecompleted', ['userid' => $userid, 'course' => $courseid]);
+        if (!$timecompleted || $DB->record_exists(self::TABLE, ['userid' => $userid, 'courseid' => $courseid])) {
+            return false;
         }
-        return 'created';
+        $now = time();
+        $DB->insert_record(self::TABLE, (object) [
+            'userid' => $userid,
+            'courseid' => $courseid,
+            'entryid' => null,
+            'status' => self::STATUS_EXCLUDED,
+            'timecompleted' => $timecompleted,
+            'actionedby' => $staffid,
+            'timecreated' => $now,
+            'timemodified' => $now,
+        ]);
+        return true;
     }
 
     /**
@@ -379,50 +507,36 @@ final class course_cpd
     }
 
     /**
-     * Creates entries for completions that have none yet, including those made before this was switched on.
+     * Tells approvers which courses have completions waiting to be released, when new ones arrived.
      *
-     * Approvers are not notified of these, so catching up on past completions does not flood them.
+     * Sends nothing unless a completion waiting now was completed since the last notice, so staff
+     * are not reminded every day about the same people.
      *
-     * @param int $limit Most completions to handle in this run.
-     * @return \stdClass Counts: created and skipped.
+     * @param int|null $now The time to work from; now if null.
+     * @return int How many approvers were told.
      */
-    public static function catch_up(int $limit = self::BATCH): \stdClass {
+    public static function notify_waiting(?int $now = null): int {
         global $DB;
-        $result = (object) ['created' => 0, 'skipped' => 0];
-        $field = self::get_field(self::FIELD_HOURS);
-        if (!$field || !self::is_enabled()) {
-            return $result;
+        $now = $now ?? time();
+        if (!self::is_enabled()) {
+            return 0;
         }
-        $sql = 'SELECT cc.id, cc.userid, cc.course, cc.timecompleted
-                  FROM {course_completions} cc
-                  JOIN {customfield_data} d ON d.instanceid = cc.course AND d.fieldid = :fieldid AND d.decvalue > 0
-                  JOIN {user} u ON u.id = cc.userid AND u.deleted = 0
-                 WHERE cc.timecompleted > 0
-                   AND NOT EXISTS (SELECT 1 FROM {' . self::TABLE . '} l WHERE l.userid = cc.userid AND l.courseid = cc.course)
-                   AND EXISTS (SELECT 1 FROM {local_cpdlog_period} p
-                                WHERE p.startdate <= cc.timecompleted AND p.enddate > cc.timecompleted
-                                      AND p.status = :open)
-                   AND NOT EXISTS (SELECT 1 FROM {' . data_deleter::TABLE . '} x
-                                    WHERE x.userid = cc.userid
-                                      AND (x.status = :queued OR (x.status = :done AND x.timecompleted >= cc.timecompleted)))
-              ORDER BY cc.timecompleted, cc.id';
-        // Completions that cannot be awarded yet (no open period covers them, or a deletion blocks them)
-        // are left out here, so they never hold up later ones; the database returns one batch at most.
-        $completions = $DB->get_recordset_sql($sql, [
-            'fieldid' => $field->get('id'),
-            'open' => \local_cpdlog\persistent\period::STATUS_OPEN,
-            'queued' => data_deleter::STATUS_QUEUED,
-            'done' => data_deleter::STATUS_DONE,
-        ], 0, $limit);
-        foreach ($completions as $completion) {
-            $outcome = self::award((int) $completion->userid, (int) $completion->course, (int) $completion->timecompleted, false);
-            if ($outcome === 'created') {
-                $result->created++;
-            } else if ($outcome === 'skipped') {
-                $result->skipped++;
-            }
+        $since = (int) get_config('local_cpdlog', 'completionnoticetime');
+        $waiting = self::count_waiting();
+        if (!$waiting) {
+            set_config('completionnoticetime', $now, 'local_cpdlog');
+            return 0;
         }
-        $completions->close();
-        return $result;
+        [$insql, $params] = $DB->get_in_or_equal(array_keys($waiting), SQL_PARAMS_NAMED);
+        $select = "course {$insql} AND timecompleted > :since
+                   AND NOT EXISTS (SELECT 1 FROM {" . self::TABLE . "} l
+                                    WHERE l.userid = {course_completions}.userid AND l.courseid = {course_completions}.course)";
+        if (!$DB->record_exists_select('course_completions', $select, $params + ['since' => $since])) {
+            return 0;
+        }
+        $courses = $DB->get_records_list('course', 'id', array_keys($waiting), 'fullname', 'id, fullname');
+        $told = notifier::completions_waiting($courses, $waiting);
+        set_config('completionnoticetime', $now, 'local_cpdlog');
+        return $told;
     }
 }

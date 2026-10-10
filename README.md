@@ -242,26 +242,33 @@ rights can copy the starting reports or build new ones from these sources.
 
 ## CPD from course completions
 
-Moodle courses can add CPD to members' logbooks automatically when they are completed:
+Moodle courses can award CPD when members complete them, but nothing reaches a logbook until an
+approver releases it:
 
 1. In a course's settings, under _CPD logbook_, a manager sets **CPD hours** and, optionally,
    **CPD category**. These fields are locked, so only managers can change them. Courses with no
    category use _Settings > Default category for course CPD_.
-2. When a member completes the course (by Moodle course completion), a CPD entry is created for
-   those hours, dated on the completion date, and sent to the approval queue. Approvers are
-   notified and check it like any other entry. The completion counts as its evidence, so this
-   happens even in a category marked _Evidence required_.
-3. The hourly task _Create CPD entries for course completions_ also adds past completions and any
-   that were missed, without notifying approvers, so turning this on does not flood the queue
-   with notifications.
+2. When members complete the course (by Moodle course completion), they wait on the course's
+   release checklist. Past completions are included.
+3. An approver (`local/cpdlog:approve`) opens _CPD courses_, follows _Release completions_ for a
+   course, ticks members (or uses the select-all box) and presses **Release to CPD logbooks**. Each
+   member gets an approved entry for the course's hours, dated on their completion date, with the
+   approver recorded as its reviewer, and is notified.
+4. To keep someone's completion out of their logbook, tick them and press **Exclude**. Excluded
+   members are listed below the checklist with who excluded them and when, and can still be
+   released later.
 
-Each completion creates at most one entry, even if the member later deletes it. Completions dated
-outside every reporting period wait until a period covers them. Completions made before staff
-deleted a member's CPD data are not added back.
+Completions dated outside every open reporting period cannot be ticked until a period covers them.
+Each completion is released at most once, even if the member later deletes the entry. Completions
+made before staff deleted a member's CPD data are not offered again.
+
+The daily task _Tell approvers about course completions waiting to be released_ sends approvers one
+notice listing each course and how many completions wait, but only when new ones have arrived
+since the last notice.
 
 _CPD courses_ (under the CPD logbook settings, for staff with `local/cpdlog:viewall`) lists every
-course that awards CPD, with its hours, category and how many entries it has created. Untick
-_Settings > Create CPD entries from course completions_ to switch it off.
+course that awards CPD, with its hours, category, how many completions have been released and how
+many are waiting. Untick _Settings > Release course completions to CPD logbooks_ to switch it off.
 
 ## Calendar and reminders
 

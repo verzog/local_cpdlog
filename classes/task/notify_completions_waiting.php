@@ -15,32 +15,40 @@
 // along with Moodle.  If not, see <https://www.gnu.org/licenses/>.
 
 /**
- * Event observers of the CPD logbook.
+ * Scheduled task telling approvers about course completions waiting to be released.
  *
  * @package    local_cpdlog
  * @copyright  2026 Vernon Spain
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
-namespace local_cpdlog;
+namespace local_cpdlog\task;
 
 use local_cpdlog\local\course_cpd;
 
 /**
- * Event observers of the CPD logbook.
+ * Scheduled task telling approvers about course completions waiting to be released.
+ *
+ * Runs daily, and only sends a notice when new completions have arrived since the last one.
  */
-class observer
+class notify_completions_waiting extends \core\task\scheduled_task
 {
     /**
-     * Creates a CPD entry, for approval, when a member completes a course that awards CPD.
+     * Returns the task name shown to administrators.
      *
-     * @param \core\event\course_completed $event The completion.
+     * @return string
      */
-    public static function course_completed(\core\event\course_completed $event): void {
-        global $DB;
-        $timecompleted = $DB->get_field('course_completions', 'timecompleted', ['id' => $event->objectid]);
-        if ($timecompleted) {
-            course_cpd::award((int) $event->relateduserid, (int) $event->courseid, (int) $timecompleted, true);
+    public function get_name(): string {
+        return get_string('task:notifycompletions', 'local_cpdlog');
+    }
+
+    /**
+     * Sends the notice if there is anything new.
+     */
+    public function execute(): void {
+        if (!course_cpd::is_enabled()) {
+            return;
         }
+        mtrace(get_string('release:noticesent', 'local_cpdlog', course_cpd::notify_waiting()));
     }
 }

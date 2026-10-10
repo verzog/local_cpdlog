@@ -15,7 +15,7 @@
 // along with Moodle.  If not, see <https://www.gnu.org/licenses/>.
 
 /**
- * Tests for creating CPD entries automatically from course completions.
+ * Tests for releasing course completions to CPD logbooks.
  *
  * @package    local_cpdlog
  * @copyright  2026 Vernon Spain
@@ -24,18 +24,16 @@
 
 namespace local_cpdlog\local;
 
-use local_cpdlog\observer;
 use local_cpdlog\persistent\category;
 use local_cpdlog\persistent\entry;
-use local_cpdlog\task\award_course_cpd;
+use local_cpdlog\task\notify_completions_waiting;
 use PHPUnit\Framework\Attributes\CoversClass;
 
 /**
- * Tests for creating CPD entries automatically from course completions.
+ * Tests for releasing course completions to CPD logbooks.
  */
 #[CoversClass(course_cpd::class)]
-#[CoversClass(observer::class)]
-#[CoversClass(award_course_cpd::class)]
+#[CoversClass(notify_completions_waiting::class)]
 final class course_cpd_test extends \advanced_testcase
 {
     /** @var \stdClass A member. */
@@ -187,114 +185,205 @@ final class course_cpd_test extends \advanced_testcase
     }
 
     /**
-     * Completing a course that awards CPD submits an entry for approval and tells approvers, once.
+     * Releasing a completion creates an approved entry reviewed by the staff member, and tells the
+     * member; the same completion is never released twice, even after its entry is gone.
      */
-    public function test_completion_creates_entry(): void {
-        global $CFG;
-        require_once($CFG->dirroot . '/completion/completion_completion.php');
+    public function test_release(): void {
         $sink = $this->redirectMessages();
         $course = $this->create_cpd_course(2.5, 'RP');
-        $completion = new \completion_completion(['userid' => $this->member->id, 'course' => $course->id]);
-        $completion->mark_complete(self::sydney('2026-03-10 14:00'));
+        $this->insert_completion((int) $course->id, self::sydney('2026-03-10 14:00'));
+        $events = $this->redirectEvents();
 
+        $result = course_cpd::release((int) $this->member->id, (int) $course->id, (int) $this->approver->id);
+        $this->assertSame('released', $result);
         $entry = $this->entry_for((int) $course->id);
-        $this->assertSame(entry::STATUS_SUBMITTED, $entry->get('status'));
+        $this->assertSame(entry::STATUS_APPROVED, $entry->get('status'));
         $this->assertSame(entry::SOURCE_MOODLE, $entry->get('source'));
         $this->assertEquals(2.5, $entry->get('hours'));
         $this->assertEquals(self::sydney('2026-03-10 14:00'), $entry->get('activitydate'));
         $this->assertSame('RP', (new category($entry->get('categoryid')))->get('shortname'));
         $this->assertSame('Dermoscopy basics', $entry->get('coursename'));
         $this->assertSame('Completed the course Dermoscopy basics.', $entry->get('description'));
-        // Core also tells the member they completed the course; the logbook tells the approver.
-        $ours = array_filter($sink->get_messages(), fn($message) => $message->component === 'local_cpdlog');
-        $this->assertEquals([$this->approver->id], array_column($ours, 'useridto'));
+        $this->assertEquals($this->approver->id, $entry->get('reviewedby'));
+        $this->assertGreaterThan(0, $entry->get('timereviewed'));
+        $this->assertSame(
+            [\local_cpdlog\event\entry_created::class, \local_cpdlog\event\entry_approved::class],
+            array_values(array_filter(
+                array_map('get_class', $events->get_events()),
+                fn($class) => str_starts_with($class, 'local_cpdlog')
+            ))
+        );
+        $messages = $sink->get_messages();
+        $this->assertEquals([$this->member->id], array_column($messages, 'useridto'));
+        $this->assertSame('entryoutcome', $messages[0]->eventtype);
+        $this->assertSame([], course_cpd::get_waiting((int) $course->id));
 
-        // The same completion never creates a second entry, even after the first is gone.
-        $this->assertSame('exists', course_cpd::award((int) $this->member->id, (int) $course->id, time(), false));
+        $this->assertSame('exists', course_cpd::release((int) $this->member->id, (int) $course->id, (int) $this->approver->id));
         $entry->delete();
-        $this->assertSame('exists', course_cpd::award((int) $this->member->id, (int) $course->id, time(), false));
-        $this->assertSame(0, course_cpd::catch_up()->created);
+        $this->assertSame('exists', course_cpd::release((int) $this->member->id, (int) $course->id, (int) $this->approver->id));
+        $this->assertFalse(course_cpd::exclude((int) $this->member->id, (int) $course->id, (int) $this->approver->id));
+        $this->assertSame([], course_cpd::get_waiting((int) $course->id));
     }
 
     /**
-     * The task catches up on past completions without notifying approvers, and waits for a period.
+     * An excluded member leaves the waiting list, is remembered with who excluded them, and can be
+     * released later.
      */
-    public function test_catch_up(): void {
-        $sink = $this->redirectMessages();
-        $course = $this->create_cpd_course(3);
+    public function test_exclude_then_release(): void {
+        global $DB;
+        $this->redirectMessages();
+        $course = $this->create_cpd_course(1);
         $this->insert_completion((int) $course->id, self::sydney('2026-02-01 10:00'));
-        $other = $this->getDataGenerator()->create_user();
-        $this->insert_completion((int) $course->id, self::sydney('2025-06-01 10:00'), (int) $other->id);
-        $this->insert_completion((int) $this->getDataGenerator()->create_course(['enablecompletion' => 1])->id, time());
+        $staff = (int) $this->approver->id;
 
-        $this->expectOutputRegex('/1 CPD entries created/');
-        (new award_course_cpd())->execute();
+        $this->assertTrue(course_cpd::exclude((int) $this->member->id, (int) $course->id, $staff));
+        $this->assertFalse(course_cpd::exclude((int) $this->member->id, (int) $course->id, $staff));
+        $this->assertSame([], course_cpd::get_waiting((int) $course->id));
+        $this->assertSame([], course_cpd::count_waiting());
+        $excluded = course_cpd::get_excluded((int) $course->id);
+        $this->assertSame([(int) $this->member->id], array_map('intval', array_keys($excluded)));
+        $row = reset($excluded);
+        $this->assertSame($this->approver->firstname, $row->stafffirstname);
+        $this->assertSame($this->member->lastname, $row->lastname);
+        $this->assertFalse($this->entry_for((int) $course->id));
+
+        $this->assertSame('released', course_cpd::release((int) $this->member->id, (int) $course->id, $staff));
         $this->assertNotFalse($this->entry_for((int) $course->id));
-        $this->assertCount(0, $sink->get_messages());
-        $this->assertSame(0, course_cpd::catch_up()->created);
+        $this->assertSame([], course_cpd::get_excluded((int) $course->id));
+        $log = $DB->get_record(course_cpd::TABLE, ['userid' => $this->member->id, 'courseid' => $course->id]);
+        $this->assertSame(course_cpd::STATUS_RELEASED, $log->status);
+        $this->assertEquals($this->entry_for((int) $course->id)->get('id'), $log->entryid);
 
-        // The 2025 completion is picked up once a period covers it.
+        // Nothing to exclude without a completion.
+        $this->assertFalse(course_cpd::exclude((int) $this->approver->id, (int) $course->id, $staff));
+    }
+
+    /**
+     * The waiting list and counts include past completions, flag those no open period covers, and
+     * leave out deleted members, members whose CPD data deletion is queued, and courses without CPD.
+     */
+    public function test_waiting(): void {
+        $course = $this->create_cpd_course(1);
+        $this->insert_completion((int) $course->id, self::sydney('2026-02-01 10:00'));
+        $early = $this->getDataGenerator()->create_user(['lastname' => 'Aardvark']);
+        $this->insert_completion((int) $course->id, self::sydney('2025-06-01 10:00'), (int) $early->id);
+        $gone = $this->getDataGenerator()->create_user();
+        $this->insert_completion((int) $course->id, self::sydney('2026-02-01 10:00'), (int) $gone->id);
+        delete_user($gone);
+        $leaving = $this->getDataGenerator()->create_user();
+        $this->insert_completion((int) $course->id, self::sydney('2026-02-01 10:00'), (int) $leaving->id);
+        set_config('enabledeletion', 1, 'local_cpdlog');
+        data_deleter::queue((int) $leaving->id, (int) get_admin()->id);
+        $nocpd = $this->getDataGenerator()->create_course(['enablecompletion' => 1]);
+        $this->insert_completion((int) $nocpd->id, self::sydney('2026-02-01 10:00'));
+        $notcompleted = $this->getDataGenerator()->create_user();
+        $this->insert_completion((int) $course->id, 0, (int) $notcompleted->id);
+
+        $waiting = course_cpd::get_waiting((int) $course->id);
+        $this->assertSame([(int) $early->id, (int) $this->member->id], array_map('intval', array_keys($waiting)));
+        $this->assertFalse($waiting[$early->id]->releasable);
+        $this->assertTrue($waiting[$this->member->id]->releasable);
+        $this->assertSame([(int) $course->id => 2], course_cpd::count_waiting());
+
+        // Without a period it cannot be released; once one covers it, it can.
+        $this->assertSame('skipped', course_cpd::release((int) $early->id, (int) $course->id, (int) $this->approver->id));
         $this->getDataGenerator()->get_plugin_generator('local_cpdlog')
             ->create_period(['name' => '2025', 'firstday' => '01/01/2025', 'lastday' => '31/12/2025']);
-        $this->assertSame(1, course_cpd::catch_up()->created);
+        $this->assertTrue(course_cpd::get_waiting((int) $course->id)[$early->id]->releasable);
+        $this->redirectMessages();
+        $this->assertSame('released', course_cpd::release((int) $early->id, (int) $course->id, (int) $this->approver->id));
+        $this->assertSame([(int) $course->id => 1], course_cpd::count_waiting());
     }
 
     /**
-     * The batch limit applies, and the rest are created on the next run. Completions that cannot be
-     * awarded yet do not use up the limit.
+     * Nothing is released while switched off, without a completion, for a course without CPD, for a
+     * member with a queued deletion or completions before a deletion ran, or in a closed period.
      */
-    public function test_catch_up_limit(): void {
-        $course = $this->create_cpd_course(1);
-        $early = $this->getDataGenerator()->create_user();
-        $this->insert_completion((int) $course->id, self::sydney('2024-01-01 10:00'), (int) $early->id);
-        foreach (range(1, 3) as $i) {
-            $user = $this->getDataGenerator()->create_user();
-            $this->insert_completion((int) $course->id, self::sydney('2026-02-0' . $i . ' 10:00'), (int) $user->id);
-        }
-        $this->assertSame(2, course_cpd::catch_up(2)->created);
-        $this->assertSame(1, course_cpd::catch_up(2)->created);
-    }
-
-    /**
-     * Nothing is created while switched off, for a member with a queued deletion, or for completions
-     * before a deletion ran; completions after it are.
-     */
-    public function test_not_created(): void {
+    public function test_release_skipped(): void {
+        $this->redirectMessages();
         $course = $this->create_cpd_course(1);
         $this->insert_completion((int) $course->id, self::sydney('2026-02-01 10:00'));
+        $member = (int) $this->member->id;
+        $staff = (int) $this->approver->id;
 
         set_config('completionenabled', 0, 'local_cpdlog');
-        $this->assertSame(0, course_cpd::catch_up()->created);
+        $this->assertSame('skipped', course_cpd::release($member, (int) $course->id, $staff));
         set_config('completionenabled', 1, 'local_cpdlog');
 
-        set_config('enabledeletion', 1, 'local_cpdlog');
-        data_deleter::queue((int) $this->member->id, (int) get_admin()->id);
-        $this->assertSame(0, course_cpd::catch_up()->created);
-        $this->assertSame('skipped', course_cpd::award((int) $this->member->id, (int) $course->id, time(), false));
-        $this->runAdhocTasks(\local_cpdlog\task\delete_member_data::class);
-        $this->assertSame(0, course_cpd::catch_up()->created);
+        $this->assertSame('skipped', course_cpd::release($staff, (int) $course->id, $staff));
+        $nocpd = $this->getDataGenerator()->create_course(['enablecompletion' => 1]);
+        $this->insert_completion((int) $nocpd->id, self::sydney('2026-02-01 10:00'));
+        $this->assertSame('skipped', course_cpd::release($member, (int) $nocpd->id, $staff));
 
-        $later = $this->create_cpd_course(1);
-        $this->assertSame('created', course_cpd::award((int) $this->member->id, (int) $later->id, time() + 60, false));
-    }
-
-    /**
-     * A completion in a closed period waits, as its entry could not be reviewed, and follows once it reopens.
-     */
-    public function test_closed_period_waits(): void {
-        $course = $this->create_cpd_course(1);
-        $this->insert_completion((int) $course->id, self::sydney('2026-02-01 10:00'));
         $period = \local_cpdlog\persistent\period::get_record(['name' => '2026']);
         $period->set('status', \local_cpdlog\persistent\period::STATUS_CLOSED);
         $period->update();
-
-        $this->assertSame(0, course_cpd::catch_up()->created);
-        $completed = self::sydney('2026-02-01 10:00');
-        $this->assertSame('skipped', course_cpd::award((int) $this->member->id, (int) $course->id, $completed, false));
-
+        $this->assertSame('skipped', course_cpd::release($member, (int) $course->id, $staff));
+        $this->assertFalse(course_cpd::get_waiting((int) $course->id)[$member]->releasable);
         $period->set('status', \local_cpdlog\persistent\period::STATUS_OPEN);
         $period->update();
-        $this->assertSame(1, course_cpd::catch_up()->created);
+
+        set_config('enabledeletion', 1, 'local_cpdlog');
+        data_deleter::queue($member, (int) get_admin()->id);
+        $this->assertSame('skipped', course_cpd::release($member, (int) $course->id, $staff));
+        $this->runAdhocTasks(\local_cpdlog\task\delete_member_data::class);
+        $this->assertSame('skipped', course_cpd::release($member, (int) $course->id, $staff));
+        $this->assertSame([], course_cpd::get_waiting((int) $course->id));
+        $this->assertFalse($this->entry_for((int) $course->id));
+
+        // A course completed after the deletion ran can be released.
+        $later = $this->create_cpd_course(1);
+        $this->insert_completion((int) $later->id, time() + 60);
+        $this->assertSame('released', course_cpd::release($member, (int) $later->id, $staff));
+    }
+
+    /**
+     * Approvers are told once about new completions waiting, not again for the same ones, and again
+     * when more arrive.
+     */
+    public function test_notify_waiting(): void {
+        $sink = $this->redirectMessages();
+        $course = $this->create_cpd_course(1);
+        $now = self::sydney('2026-03-01 08:00');
+        $this->insert_completion((int) $course->id, $now - DAYSECS);
+
+        $this->assertSame(1, course_cpd::notify_waiting($now));
+        $messages = $sink->get_messages();
+        $this->assertEquals([$this->approver->id], array_column($messages, 'useridto'));
+        $this->assertSame('completionswaiting', $messages[0]->eventtype);
+        $this->assertStringContainsString('Dermoscopy basics: 1 waiting', $messages[0]->fullmessagehtml);
+        $sink->clear();
+
+        $this->assertSame(0, course_cpd::notify_waiting($now + DAYSECS));
+        $other = $this->getDataGenerator()->create_user();
+        $this->insert_completion((int) $course->id, $now + HOURSECS, (int) $other->id);
+        $this->assertSame(1, course_cpd::notify_waiting($now + 2 * DAYSECS));
+        $this->assertStringContainsString('Dermoscopy basics: 2 waiting', $sink->get_messages()[0]->fullmessagehtml);
+
+        // Excluding a new completion means it no longer waits, so it prompts no notice.
+        $sink->clear();
+        $third = $this->getDataGenerator()->create_user();
+        $this->insert_completion((int) $course->id, $now + 3 * DAYSECS, (int) $third->id);
+        course_cpd::exclude((int) $third->id, (int) $course->id, (int) $this->approver->id);
+        $this->assertSame(0, course_cpd::notify_waiting($now + 4 * DAYSECS));
+
+        set_config('completionenabled', 0, 'local_cpdlog');
+        $this->assertSame(0, course_cpd::notify_waiting($now + 5 * DAYSECS));
+        $this->assertCount(0, $sink->get_messages());
+    }
+
+    /**
+     * The daily task reports how many approvers it told, and does nothing while switched off.
+     */
+    public function test_task(): void {
+        $this->redirectMessages();
+        $course = $this->create_cpd_course(1);
+        $this->insert_completion((int) $course->id, self::sydney('2026-02-01 10:00'));
+        $this->expectOutputRegex('/Approvers told about course completions waiting to be released: 1\./');
+        (new notify_completions_waiting())->execute();
+
+        set_config('completionenabled', 0, 'local_cpdlog');
+        (new notify_completions_waiting())->execute();
     }
 
     /**
@@ -304,28 +393,6 @@ final class course_cpd_test extends \advanced_testcase
         set_config('maxhoursperentry', 2, 'local_cpdlog');
         $course = $this->create_cpd_course(5);
         $this->assertEquals(2, course_cpd::get_course_cpd((int) $course->id)->hours);
-    }
-
-    /**
-     * Switched off, nothing about the course is looked up; and a completion never fails because the
-     * logbook cannot record it.
-     */
-    public function test_never_breaks_completion(): void {
-        global $CFG, $DB;
-        require_once($CFG->dirroot . '/completion/completion_completion.php');
-        $this->redirectMessages();
-        $course = $this->create_cpd_course(1);
-        $DB->set_field(category::TABLE, 'enabled', 0, []);
-
-        set_config('completionenabled', 0, 'local_cpdlog');
-        $this->assertSame('none', course_cpd::award((int) $this->member->id, (int) $course->id, time(), false));
-
-        set_config('completionenabled', 1, 'local_cpdlog');
-        $completion = new \completion_completion(['userid' => $this->member->id, 'course' => $course->id]);
-        $completion->mark_complete(self::sydney('2026-03-10 14:00'));
-        $this->assertDebuggingCalled();
-        $this->assertNotEmpty($completion->timecompleted);
-        $this->assertFalse($this->entry_for((int) $course->id));
     }
 
     /**
