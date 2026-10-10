@@ -196,7 +196,7 @@ foreach ($entries as $entry) {
         $time ? userdate($time, $timeformat) : '',
         display::activity_date($entry),
         $categorynames[$entry->get('categoryid')] ?? '',
-        format_string((string) $entry->get('coursename')),
+        display::course($entry),
         format_float($entry->get('hours'), 2),
         display::description($entry),
         display::evidence_links($entry),

@@ -142,6 +142,14 @@ scoping", 24/09/2026). Where this file and the scoping document differ, this fil
       provider still leaves CPD entries in place (decision 12).
     - Day counts use calendar days in the site timezone, so DST does not move a reminder.
 
+20. **External activities** (agreed 09/10/2026). A category can allow external activities
+    (`allowexternal`). In such a category a member may choose "External activity" instead of a
+    course and give the activity name and provider (`activityname`, `provider`; no course). External
+    entries always need at least one evidence file to be submitted, whatever the category's own
+    evidence setting, and go through the normal approval queue. An existing external entry stays
+    valid if its category later stops accepting new ones. Duplicate warnings match external
+    activities on their name.
+
 ## Schema notes
 
 - `local_cpdlog_target` holds the required hours; `local_cpdlog_target_cat` links the categories

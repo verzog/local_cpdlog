@@ -74,7 +74,7 @@ $details->data = [
     [get_string('member', 'local_cpdlog'), s(fullname(core_user::get_user($entry->get('userid'), '*', MUST_EXIST)))],
     [get_string('activitydate', 'local_cpdlog'), display::activity_date($entry)],
     [get_string('category'), $category ? format_string($category->get('name')) : ''],
-    [get_string('course'), format_string((string) $entry->get('coursename'))],
+    [get_string('course'), display::course($entry)],
     [get_string('hours', 'local_cpdlog'), format_float($entry->get('hours'), 2)],
     [get_string('description'), display::description($entry)],
     [get_string('evidence', 'local_cpdlog'), display::evidence_links($entry)],

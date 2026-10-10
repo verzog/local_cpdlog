@@ -56,6 +56,9 @@ if ($id) {
 
 $form = new entry_form($url, ['userid' => (int) $USER->id, 'entry' => $entry]);
 $data = $entry ? file_prepare_standard_editor($entry->to_record(), 'description', entry_form::editor_options()) : new stdClass();
+if ($entry && $entry->is_external()) {
+    $data->courseid = entry::EXTERNAL_COURSE;
+}
 $data = file_prepare_standard_filemanager(
     $data,
     'evidence',

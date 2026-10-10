@@ -110,6 +110,11 @@ renamed, reordered, disabled or added to. Tick _Evidence required_ on a category
 in it being submitted without at least one evidence file. Categories are disabled rather than
 deleted, so entries are never orphaned.
 
+Tick _Allows external activities_ on a category to let members log activities in it that were
+not Moodle courses, such as conferences or workshops. They name the activity and its provider
+instead of choosing a course. External entries always need at least one evidence file before they
+can be submitted, and approvers review them like any other entry.
+
 ### 4. Add reporting periods
 
 Open _Reporting periods_ and add one for each CPD year or cycle, for example _2026_ from
@@ -182,6 +187,8 @@ beside them. Earlier and later periods can be picked from the _Reporting period_
 2. Pick the course (one the member is or was enrolled in, or has completed), the category, the
    date and the hours, and describe the activity. The date must fall in an open reporting period,
    and the hours are limited by the _Maximum hours per entry_ setting.
+   For an activity outside Moodle, choose _External activity (not a Moodle course)_ and give the
+   activity name and provider. Only categories that allow external activities accept these.
 3. Attach evidence if needed: up to 5 files (PDF, Word or image). Categories marked _Evidence
    required_ need at least one file before the entry can be submitted.
 4. Save. The entry is kept as a draft that the member can change or delete.

@@ -133,7 +133,7 @@ foreach (entry::get_records_select('userid = :userid', ['userid' => $USER->id], 
     $table->data[] = [
         display::activity_date($entry),
         $categorynames[$entry->get('categoryid')] ?? '',
-        format_string((string) $entry->get('coursename')),
+        display::course($entry),
         format_float($entry->get('hours'), 2),
         display::evidence_links($entry),
         $status,

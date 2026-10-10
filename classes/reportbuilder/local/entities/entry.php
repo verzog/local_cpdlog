@@ -109,14 +109,34 @@ class entry extends base
                 return $source === null ? '' : get_string('source:' . $source, 'local_cpdlog');
             });
 
+        // An external activity has no course, so it shows its name and provider instead.
         $columns[] = (new column('coursename', new lang_string('course'), $this->get_entity_name()))
             ->add_joins($this->get_joins())
             ->set_type(column::TYPE_TEXT)
-            ->add_field("{$alias}.coursename")
-            ->set_is_sortable(true)
-            ->add_callback(static function (?string $name): string {
-                return $name === null ? '' : format_string($name, true, ['context' => \context_system::instance()]);
+            ->add_fields("{$alias}.coursename, {$alias}.activityname, {$alias}.provider")
+            ->set_is_sortable(true, ["{$alias}.coursename", "{$alias}.activityname"])
+            ->add_callback(static function (?string $name, \stdClass $row): string {
+                $options = ['context' => \context_system::instance()];
+                if ($name === null && $row->activityname !== null) {
+                    return get_string('externalactivitylabel', 'local_cpdlog', (object) [
+                        'name' => format_string($row->activityname, true, $options),
+                        'provider' => format_string((string) $row->provider, true, $options),
+                    ]);
+                }
+                return $name === null ? '' : format_string($name, true, $options);
             });
+
+        // External activities have a name and provider instead of a course.
+        foreach (['activityname', 'provider'] as $field) {
+            $columns[] = (new column($field, new lang_string($field, 'local_cpdlog'), $this->get_entity_name()))
+                ->add_joins($this->get_joins())
+                ->set_type(column::TYPE_TEXT)
+                ->add_field("{$alias}.{$field}")
+                ->set_is_sortable(true)
+                ->add_callback(static function (?string $value): string {
+                    return $value === null ? '' : format_string($value, true, ['context' => \context_system::instance()]);
+                });
+        }
 
         $columns[] = (new column('description', new lang_string('description'), $this->get_entity_name()))
             ->add_joins($this->get_joins())
@@ -212,6 +232,17 @@ class entry extends base
             "{$alias}.coursename"
         ))
             ->add_joins($this->get_joins());
+
+        foreach (['activityname', 'provider'] as $field) {
+            $filters[] = (new filter(
+                text::class,
+                $field,
+                new lang_string($field, 'local_cpdlog'),
+                $this->get_entity_name(),
+                "{$alias}.{$field}"
+            ))
+                ->add_joins($this->get_joins());
+        }
 
         $filters[] = (new filter(
             date::class,

@@ -87,6 +87,28 @@ final class entries_test extends core_reportbuilder_testcase
     }
 
     /**
+     * The Course column shows an external activity's name and provider, as it has no course.
+     */
+    public function test_external_activity_course_column(): void {
+        $member = $this->getDataGenerator()->create_user(['firstname' => 'Carol', 'lastname' => 'Member']);
+        $this->getDataGenerator()->get_plugin_generator('local_cpdlog')->create_entry([
+            'userid' => $member->id,
+            'period' => '2026',
+            'day' => '11/03/2026',
+            'activityname' => 'Dermoscopy conference',
+            'provider' => 'Skin College',
+            'status' => entry::STATUS_SUBMITTED,
+        ]);
+        $generator = $this->getDataGenerator()->get_plugin_generator('core_reportbuilder');
+        $report = $generator->create_report(['name' => 'Entries', 'source' => entries::class, 'default' => 1]);
+
+        $content = $this->get_custom_report_content((int) $report->get('id'));
+        $courses = array_map(fn($row) => array_values($row)[3], $content);
+        $this->assertContains('Dermoscopy conference, Skin College (external)', $courses);
+        $this->assertContains('Dermoscopy basics', $courses);
+    }
+
+    /**
      * Custom user profile fields can filter the report, through the core user entity.
      */
     public function test_profile_field_filter(): void {

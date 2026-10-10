@@ -44,6 +44,24 @@ final class display
     }
 
     /**
+     * Returns what the activity was: its course name, or for an external activity its name and provider.
+     *
+     * @param entry $entry The entry.
+     * @param bool $escape Whether to escape the result for HTML; false for plain text such as message subjects.
+     * @return string
+     */
+    public static function course(entry $entry, bool $escape = true): string {
+        $options = ['escape' => $escape];
+        if ($entry->is_external()) {
+            return get_string('externalactivitylabel', 'local_cpdlog', (object) [
+                'name' => format_string((string) $entry->get('activityname'), true, $options),
+                'provider' => format_string((string) $entry->get('provider'), true, $options),
+            ]);
+        }
+        return format_string((string) $entry->get('coursename'), true, $options);
+    }
+
+    /**
      * Returns the member's description of the activity, formatted for display.
      *
      * The description editor allows no embedded files, so there are no file URLs to rewrite.
