@@ -41,6 +41,10 @@ data deletions are carried out by background tasks.
 
 ### Installing via uploaded ZIP file
 
+Download `local_cpdlog-<tag>.zip` (for example `local_cpdlog-v0.1.0.zip`) from the
+[Releases](https://github.com/verzog/local_cpdlog/releases) page. Do not use GitHub's
+"Source code (zip)": its top folder is named after the repository, not `cpdlog`.
+
 1. Log in to your Moodle site as an admin and go to _Site administration >
    Plugins > Install plugins_.
 2. Upload the ZIP file with the plugin code. You should only be prompted to add
@@ -403,4 +407,4 @@ even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE
 General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with this program (see
-`COPYING.txt`). If not, see <https://www.gnu.org/licenses/>.
+`LICENSE`). If not, see <https://www.gnu.org/licenses/>.
