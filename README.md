@@ -30,7 +30,6 @@ agreed design decisions and the build plan.
 
 | Moodle | PHP |
 |---|---|
-| 5.0 | 8.2–8.4 |
 | 5.1 | 8.2–8.4 |
 | 5.2 | 8.3–8.4 |
 | 5.3 LTS | 8.3–8.4 |
@@ -379,8 +378,9 @@ hours they earn afterwards are.
 ## Development and testing
 
 The plugin follows the Moodle coding style and is checked on every push by GitHub Actions
-(`.github/workflows/moodle-ci.yml`) with
-[moodle-plugin-ci](https://moodlehq.github.io/moodle-plugin-ci/) across Moodle 5.0 to 5.3: PHP lint,
+(`.github/workflows/moodle-ci.yml`, which calls the shared workflow in
+[verzog/moodle-ci-workflows](https://github.com/verzog/moodle-ci-workflows)) with
+[moodle-plugin-ci](https://moodlehq.github.io/moodle-plugin-ci/) across Moodle 5.1 to 5.3: PHP lint,
 code style, PHPDoc, Mustache, PHPUnit and Behat.
 
 To run the tests locally in a Moodle checkout with the plugin installed:

@@ -25,8 +25,8 @@
 defined('MOODLE_INTERNAL') || die();
 
 $plugin->component = 'local_cpdlog';
-$plugin->version = 2026101300;
-$plugin->requires = 2025041400; // Moodle 5.0.
-$plugin->supported = [500, 503];
+$plugin->version = 2026102900;
+$plugin->requires = 2025100600; // Moodle 5.1.
+$plugin->supported = [501, 503];
 $plugin->maturity = MATURITY_ALPHA;
 $plugin->release = '0.1.0';
