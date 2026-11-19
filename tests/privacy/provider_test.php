@@ -39,7 +39,7 @@ use PHPUnit\Framework\Attributes\CoversClass;
 final class provider_test extends \core_privacy\tests\provider_testcase
 {
     /**
-     * Every table holding personal data, the evidence files and the notifications are declared.
+     * Every table holding personal data, the evidence files, the notifications and iMIS are declared.
      */
     public function test_get_metadata_declares_tables(): void {
         $collection = provider::get_metadata(new collection('local_cpdlog'));
@@ -48,6 +48,7 @@ final class provider_test extends \core_privacy\tests\provider_testcase
         $this->assertEqualsCanonicalizing([
             'core_files',
             'core_message',
+            'imis',
             'local_cpdlog_category',
             'local_cpdlog_cohortchoice',
             'local_cpdlog_completion',

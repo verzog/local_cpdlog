@@ -104,6 +104,54 @@ if ($hassiteconfig) {
             '/^([1-9]|[1-4]\d|50)$/'
         ));
 
+        $settings->add(new admin_setting_configselect(
+            'local_cpdlog/upcomingsource',
+            new lang_string('upcomingsource', 'local_cpdlog'),
+            new lang_string('upcomingsource_desc', 'local_cpdlog'),
+            \local_cpdlog\local\upcoming::SOURCE_MOODLE,
+            [\local_cpdlog\local\upcoming::class, 'get_source_choices']
+        ));
+
+        // The iMIS connection, used only when the Membership Bridge's is not set.
+        $settings->add(new admin_setting_heading(
+            'local_cpdlog/imisheading',
+            new lang_string('imisheading', 'local_cpdlog'),
+            new lang_string('imisheading_desc', 'local_cpdlog')
+        ));
+        $settings->add(new admin_setting_configtext(
+            'local_cpdlog/imisbaseurl',
+            new lang_string('imisbaseurl', 'local_cpdlog'),
+            new lang_string('imisbaseurl_desc', 'local_cpdlog'),
+            '',
+            PARAM_URL
+        ));
+        $settings->add(new admin_setting_configtext(
+            'local_cpdlog/imisusername',
+            new lang_string('imisusername', 'local_cpdlog'),
+            new lang_string('imisusername_desc', 'local_cpdlog'),
+            '',
+            PARAM_RAW_TRIMMED
+        ));
+        $settings->add(new admin_setting_configpasswordunmask(
+            'local_cpdlog/imispassword',
+            new lang_string('imispassword', 'local_cpdlog'),
+            new lang_string('imispassword_desc', 'local_cpdlog'),
+            ''
+        ));
+        $settings->add(new admin_setting_configtext(
+            'local_cpdlog/imiseventurl',
+            new lang_string('imiseventurl', 'local_cpdlog'),
+            new lang_string('imiseventurl_desc', 'local_cpdlog'),
+            \local_cpdlog\local\upcoming\imis_source::DEFAULT_EVENT_URL,
+            PARAM_RAW_TRIMMED
+        ));
+        $settings->add(new admin_setting_configcheckbox(
+            'local_cpdlog/imiscpdonly',
+            new lang_string('imiscpdonly', 'local_cpdlog'),
+            new lang_string('imiscpdonly_desc', 'local_cpdlog'),
+            1
+        ));
+
         // CPD hours from the image blog appear only when that plugin is installed.
         if (\local_cpdlog\local\imageblog_sync::is_installed()) {
             $settings->add(new admin_setting_heading(

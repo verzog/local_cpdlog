@@ -88,8 +88,9 @@ Open _Settings_:
 - **Send CPD reminders** (default on) and **Reminder days** (default 60,14): remind members who
   are behind on their targets before a reporting period closes. See
   [Calendar and reminders](#calendar-and-reminders).
-- **Show upcoming CPD** (default on), **Days ahead** (default 60) and **Items in each list**
-  (default 10): see [Upcoming CPD](#upcoming-cpd).
+- **Show upcoming CPD** (default on), **Days ahead** (default 60), **Items in each list**
+  (default 10), **Upcoming CPD from** (default Moodle) and the **iMIS connection**: see
+  [Upcoming CPD](#upcoming-cpd).
 - **Allow CPD data deletion** (default off): switches on the deletion tool described in
   [Privacy and data deletion](#privacy-and-data-deletion). Leave it off until it is needed.
 - **Image blog** (only shown when the image blog plugin, `local_imageblog`, is installed): whether
@@ -351,8 +352,24 @@ Settings, under _Upcoming CPD_: switch it off, choose how many days ahead it loo
 many items each list shows (1 to 50, default 10). The list is cached for up to 15 minutes, so a new
 course or event can take that long to appear; enrolling counts at once.
 
-Upcoming CPD comes from Moodle for now. It is fetched through its own class
-(`local_cpdlog\local\upcoming\source`), so an iMIS event feed can replace it later.
+**From iMIS.** _Upcoming CPD from_ chooses Moodle (the default), iMIS events, or both. iMIS events
+come from the iMIS Events API with their CPD hours from each event's _CPD Hours_ panel (`EventCPD`):
+Education, Reviewing Performance and Measuring Outcomes hours count towards the logbook's EA, RP and
+MO categories. Only active, published events that are not templates are listed and, by default,
+only those with CPD hours. An event is under _Mine_ when the member is registered for it in iMIS.
+Each event links to its iMIS page.
+
+- **Connection:** when the Membership Bridge (`local_membershipbridge`) has its REST connection set,
+  the logbook uses it, with the same service account. Otherwise fill in _iMIS connection_ in the
+  settings: the iMIS site address and a dedicated service account with the RemoteService role and
+  read access to events. Members are matched to iMIS by the Membership Bridge's member ID setting,
+  or else by their ID number.
+- **Refresh:** the scheduled task _Read upcoming CPD events from iMIS_ reads the events every 15
+  minutes, so pages do not wait on iMIS. Each member's registrations are checked when they view the
+  list and kept for 15 minutes. If iMIS cannot be read, the list shows the Moodle items only.
+- The logbook only reads from iMIS here; it never writes.
+
+The sources sit behind their own interface (`local_cpdlog\local\upcoming\source`).
 
 ## CPD from the image blog
 

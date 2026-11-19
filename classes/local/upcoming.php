@@ -24,6 +24,8 @@
 
 namespace local_cpdlog\local;
 
+use local_cpdlog\local\upcoming\combined_source;
+use local_cpdlog\local\upcoming\imis_source;
 use local_cpdlog\local\upcoming\moodle_source;
 use local_cpdlog\local\upcoming\source;
 
@@ -40,6 +42,15 @@ class upcoming
 
     /** @var string Items the member could join. */
     const FILTER_AVAILABLE = 'available';
+
+    /** @var string Source setting: courses and events in Moodle. */
+    const SOURCE_MOODLE = 'moodle';
+
+    /** @var string Source setting: events in iMIS. */
+    const SOURCE_IMIS = 'imis';
+
+    /** @var string Source setting: both. */
+    const SOURCE_BOTH = 'both';
 
     /** @var int Default number of days ahead to look. */
     const DEFAULT_DAYS = 60;
@@ -78,12 +89,39 @@ class upcoming
     }
 
     /**
-     * Returns the source of upcoming CPD.
+     * Returns the setting for where upcoming CPD comes from: Moodle (the default), iMIS or both.
+     *
+     * @return string
+     */
+    public static function get_source_setting(): string {
+        $setting = (string) get_config('local_cpdlog', 'upcomingsource');
+        return in_array($setting, [self::SOURCE_IMIS, self::SOURCE_BOTH], true) ? $setting : self::SOURCE_MOODLE;
+    }
+
+    /**
+     * Returns the source of upcoming CPD, as the settings choose.
      *
      * @return source
      */
     public static function get_source(): source {
-        return new moodle_source();
+        return match (self::get_source_setting()) {
+            self::SOURCE_IMIS => new imis_source(),
+            self::SOURCE_BOTH => new combined_source([new moodle_source(), new imis_source()]),
+            default => new moodle_source(),
+        };
+    }
+
+    /**
+     * Returns the choices for the source setting.
+     *
+     * @return string[]
+     */
+    public static function get_source_choices(): array {
+        return [
+            self::SOURCE_MOODLE => get_string('upcomingsource:moodle', 'local_cpdlog'),
+            self::SOURCE_IMIS => get_string('upcomingsource:imis', 'local_cpdlog'),
+            self::SOURCE_BOTH => get_string('upcomingsource:both', 'local_cpdlog'),
+        ];
     }
 
     /**
