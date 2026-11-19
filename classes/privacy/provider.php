@@ -58,6 +58,10 @@ class provider implements
      * @return collection The updated collection.
      */
     public static function get_metadata(collection $collection): collection {
+        // Upcoming CPD from iMIS asks whether the member is registered for each event.
+        $collection->add_external_location_link('imis', [
+            'imisid' => 'privacy:metadata:imis:imisid',
+        ], 'privacy:metadata:imis');
         $collection->add_database_table('local_cpdlog_entry', [
             'userid' => 'privacy:metadata:local_cpdlog_entry:userid',
             'categoryid' => 'privacy:metadata:local_cpdlog_entry:categoryid',

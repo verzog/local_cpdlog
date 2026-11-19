@@ -181,6 +181,24 @@ scoping", 24/09/2026). Where this file and the scoping document differ, this fil
     (decision 8). The list, the same for everyone, is kept in an application cache for 15 minutes;
     each member's items are picked out afresh from their enrolments. Settings switch it off and set
     the window and list length.
+24. **Upcoming CPD from iMIS** (agreed 19/11/2026; follows decision 23 and the iMIS research
+    below). A setting chooses the source: Moodle (default), iMIS or both.
+    - Events come from `GET /api/Event` (with the start-date filter, or unfiltered if iMIS refuses
+      it), keeping active (`A`), published, non-template events, with CPD hours added up from the
+      `EventCPD` rows: `EducationPoints`, `ReviewingPerformancePoints` and `MeasuringOutcomesPoints`
+      count as EA, RP and MO. By default only events with CPD hours are listed.
+    - The list is the same for everyone. The task `refresh_imis_events` reads it every 15 minutes
+      into the application cache, keyed by connection; a page reads iMIS only when there is no list
+      or it is a day old.
+    - An event is _Mine_ when `GET /api/EventRegistration?EventId=…&PartyId=…` finds a
+      registration (404 means none). Each member's answers are cached for 15 minutes, or 5 after a
+      failure. _To confirm on sccadev:_ whether cancelled or waitlist-only registrations also
+      return a record, and should then not count.
+    - The connection is the Membership Bridge's REST connection when it is set (one iMIS API user,
+      as each is a paid licence), else the logbook's own settings. The member's iMIS ID is the
+      Membership Bridge's `get_imis_id()`, else their ID number. The client is read-only: token from
+      `POST /token`, one renewal after a 401, paging, short timeouts, and errors reported without
+      request details. The privacy provider declares the iMIS ID sent to iMIS.
 
 ## Schema notes
 
@@ -228,9 +246,9 @@ need checking on sccadev.
   `Capacity`, `TemplateState` and `PublishingInformation`. wormiss drops templates, unpublished
   or expired events and events whose status is not active (`A`), and links to
   `/iCore/Events/Event_display.aspx?EventKey={EventId}`.
-- An iMIS source for upcoming CPD would be a second `local_cpdlog\local\upcoming\source` class.
-  The membership bridge's event-to-course mapping (`MOODLE_PRODUCTS`, `{EventCode}/REG`) is marked
-  replaceable because of a planned program rework, so do not depend on it.
+- Upcoming CPD's iMIS source is built on this (decision 24). The membership bridge's
+  event-to-course mapping (`MOODLE_PRODUCTS`, `{EventCode}/REG`) is marked replaceable because of
+  a planned program rework, so do not depend on it.
 
 **CPD categories in iMIS.**
 - Per-event CPD hours are in the `EventCPD` panel ("CPD Hours"), keyed `EventKey|Ordinal`, with

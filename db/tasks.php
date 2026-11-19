@@ -52,4 +52,13 @@ $tasks = [
         'month' => '*',
         'dayofweek' => '*',
     ],
+    [
+        'classname' => '\local_cpdlog\task\refresh_imis_events',
+        'blocking' => 0,
+        'minute' => '*/15',
+        'hour' => '*',
+        'day' => '*',
+        'month' => '*',
+        'dayofweek' => '*',
+    ],
 ];
