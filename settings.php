@@ -77,6 +77,33 @@ if ($hassiteconfig) {
         );
         $settings->add($reminderdays);
 
+        // Upcoming CPD on members' logbooks.
+        $settings->add(new admin_setting_heading(
+            'local_cpdlog/upcomingheading',
+            new lang_string('upcoming', 'local_cpdlog'),
+            new lang_string('upcomingheading_desc', 'local_cpdlog')
+        ));
+        $settings->add(new admin_setting_configcheckbox(
+            'local_cpdlog/upcomingenabled',
+            new lang_string('upcomingenabled', 'local_cpdlog'),
+            new lang_string('upcomingenabled_desc', 'local_cpdlog'),
+            1
+        ));
+        $settings->add(new admin_setting_configtext(
+            'local_cpdlog/upcomingdays',
+            new lang_string('upcomingdays', 'local_cpdlog'),
+            new lang_string('upcomingdays_desc', 'local_cpdlog'),
+            \local_cpdlog\local\upcoming::DEFAULT_DAYS,
+            '/^([1-9]\d?|[12]\d\d|3[0-5]\d|36[0-6])$/'
+        ));
+        $settings->add(new admin_setting_configtext(
+            'local_cpdlog/upcominglimit',
+            new lang_string('upcominglimit', 'local_cpdlog'),
+            new lang_string('upcominglimit_desc', 'local_cpdlog'),
+            \local_cpdlog\local\upcoming::DEFAULT_LIMIT,
+            '/^([1-9]|[1-4]\d|50)$/'
+        ));
+
         // CPD hours from the image blog appear only when that plugin is installed.
         if (\local_cpdlog\local\imageblog_sync::is_installed()) {
             $settings->add(new admin_setting_heading(

@@ -136,6 +136,36 @@ final class mobile_test extends \advanced_testcase
     }
 
     /**
+     * The logbook carries both upcoming CPD lists, so the app can switch between them offline,
+     * and none when upcoming CPD is switched off.
+     */
+    public function test_logbook_upcoming(): void {
+        // Only staff may add course events and change the locked CPD fields.
+        $this->setAdminUser();
+        $this->getDataGenerator()->create_event([
+            'name' => 'Webinar <b>x</b>',
+            'timestart' => time() + DAYSECS,
+            'eventtype' => 'course',
+            'courseid' => $this->course->id,
+        ]);
+        update_course((object) ['id' => $this->course->id, 'customfield_cpdlog_hours' => 2]);
+        $this->setUser($this->member);
+
+        $result = mobile::mobile_logbook([]);
+        $data = self::otherdata($result);
+        $this->assertSame('mine', $data['upcomingfilter']);
+        $this->assertSame(60, $data['upcomingdays']);
+        // The course itself starts today, so its start is listed too.
+        $this->assertSame(['Dermoscopy basics', 'Webinar x'], array_column($data['upcoming']['mine'], 'title'));
+        $this->assertSame([], $data['upcoming']['available']);
+        $this->assertStringContainsString('ion-segment', $result['templates'][0]['html']);
+        $this->assertStringNotContainsString('Webinar', $result['templates'][0]['html']);
+
+        set_config('upcomingenabled', 0, 'local_cpdlog');
+        $this->assertNull(self::otherdata(mobile::mobile_logbook([]))['upcoming']);
+    }
+
+    /**
      * What members type never reaches the template, which the app compiles as Angular code.
      */
     public function test_user_text_stays_out_of_templates(): void {

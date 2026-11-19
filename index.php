@@ -24,6 +24,7 @@
 
 use local_cpdlog\local\display;
 use local_cpdlog\local\entry_manager;
+use local_cpdlog\local\upcoming;
 use local_cpdlog\persistent\category;
 use local_cpdlog\persistent\entry;
 use local_cpdlog\persistent\period;
@@ -38,6 +39,7 @@ $action = optional_param('action', '', PARAM_ALPHA);
 $id = optional_param('id', 0, PARAM_INT);
 $confirm = optional_param('confirm', 0, PARAM_BOOL);
 $periodid = optional_param('periodid', 0, PARAM_INT);
+$upcomingfilter = optional_param('upcoming', upcoming::FILTER_MINE, PARAM_ALPHA);
 $url = new moodle_url('/local/cpdlog/index.php');
 
 $PAGE->set_context($context);
@@ -164,6 +166,19 @@ if ($shown) {
     $select->set_label(get_string('reportingperiod', 'local_cpdlog'));
     echo $OUTPUT->render($select);
     echo $OUTPUT->render_from_template('local_cpdlog/progress', display::progress((int) $USER->id, $shown));
+}
+if (upcoming::is_enabled()) {
+    $mine = $upcomingfilter !== upcoming::FILTER_AVAILABLE;
+    $items = upcoming::get_lists((int) $USER->id)[$mine ? upcoming::FILTER_MINE : upcoming::FILTER_AVAILABLE];
+    $params = $periodid ? ['periodid' => $periodid] : [];
+    echo $OUTPUT->render_from_template('local_cpdlog/upcoming', [
+        'mine' => $mine,
+        'mineurl' => (new moodle_url($url, $params + ['upcoming' => upcoming::FILTER_MINE]))->out(false),
+        'availableurl' => (new moodle_url($url, $params + ['upcoming' => upcoming::FILTER_AVAILABLE]))->out(false),
+        'items' => $items,
+        'hasitems' => (bool) $items,
+        'days' => upcoming::get_days(),
+    ]);
 }
 if ($cansubmit) {
     echo $OUTPUT->single_button(new moodle_url('/local/cpdlog/edit.php'), get_string('addentry', 'local_cpdlog'), 'get');

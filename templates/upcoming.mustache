@@ -1,0 +1,91 @@
+{{!
+    This file is part of Moodle - https://moodle.org/
+
+    Moodle is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    Moodle is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with Moodle.  If not, see <https://www.gnu.org/licenses/>.
+}}
+{{!
+    @template local_cpdlog/upcoming
+
+    Upcoming CPD on the member's logbook: courses that award CPD starting soon, and events in them,
+    with a switch between the member's own and what else is available.
+
+    Context variables required for this template:
+    * mine - Whether the member's own items are shown, rather than the available ones.
+    * mineurl - Link to the member's own items.
+    * availableurl - Link to the available items.
+    * items - The items shown: title, iscourse, coursename, date, hours, category and url.
+    * hasitems - Whether there are any.
+    * days - How many days ahead the list covers.
+
+    Example context (json):
+    {
+        "mine": true,
+        "mineurl": "https://example.com/local/cpdlog/index.php?upcoming=mine",
+        "availableurl": "https://example.com/local/cpdlog/index.php?upcoming=available",
+        "hasitems": true,
+        "days": 60,
+        "items": [
+            {
+                "title": "Dermoscopy workshop",
+                "iscourse": false,
+                "coursename": "Dermoscopy basics",
+                "date": "12/12/2026, 06:30 PM",
+                "hours": "2.50",
+                "category": "Educational activities",
+                "url": "https://example.com/course/view.php?id=2"
+            }
+        ]
+    }
+}}
+<section class="local-cpdlog-upcoming mb-4" aria-labelledby="local-cpdlog-upcoming-heading">
+    <h3 id="local-cpdlog-upcoming-heading">{{#str}} upcoming, local_cpdlog {{/str}}</h3>
+    <ul class="nav nav-tabs mb-2">
+        <li class="nav-item">
+            <a class="nav-link{{#mine}} active{{/mine}}" href="{{mineurl}}"{{#mine}} aria-current="page"{{/mine}}>
+                {{#str}} upcoming:mine, local_cpdlog {{/str}}
+            </a>
+        </li>
+        <li class="nav-item">
+            <a class="nav-link{{^mine}} active{{/mine}}" href="{{availableurl}}"{{^mine}} aria-current="page"{{/mine}}>
+                {{#str}} upcoming:available, local_cpdlog {{/str}}
+            </a>
+        </li>
+    </ul>
+    {{#hasitems}}
+    <ul class="list-group">
+        {{#items}}
+        <li class="list-group-item">
+            <div class="d-flex justify-content-between flex-wrap">
+                <a href="{{url}}" class="fw-bold">{{title}}</a>
+                <span class="text-muted">{{date}}</span>
+            </div>
+            <div class="small">
+                {{#iscourse}}
+                <span class="badge bg-info text-dark">{{#str}} upcoming:coursestarts, local_cpdlog {{/str}}</span>
+                {{/iscourse}}
+                {{^iscourse}}{{#coursename}}{{coursename}}{{/coursename}}{{/iscourse}}
+                {{#hours}}<span class="ms-1">{{#str}} upcoming:hours, local_cpdlog, {{hours}} {{/str}}</span>{{/hours}}
+                {{#category}}<span class="ms-1 text-muted">{{category}}</span>{{/category}}
+            </div>
+        </li>
+        {{/items}}
+    </ul>
+    {{/hasitems}}
+    {{^hasitems}}
+    <p>
+        {{#mine}}{{#str}} upcoming:nonemine, local_cpdlog, {{days}} {{/str}}{{/mine}}
+        {{^mine}}{{#str}} upcoming:noneavailable, local_cpdlog, {{days}} {{/str}}{{/mine}}
+    </p>
+    {{/hasitems}}
+</section>
