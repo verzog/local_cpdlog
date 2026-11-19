@@ -426,7 +426,7 @@ CSV file, everyone or one member, and run an audit. It changes nothing, and list
 
 _Import N new records_ then adds the new records as approved entries, in closed periods too, marked
 _From iMIS_ or _From an import_. Only the source can change them. _Import conflicts_ lists the
-conflicts from the latest audit of each source: _Import anyway_ if it is a different activity,
+conflicts, each as last audited: _Import anyway_ if it is a different activity,
 _Skip_ if it is the same one. A skipped record stays skipped in later audits. Audits are kept for
 90 days; decisions on conflicts are kept for good.
 

@@ -59,10 +59,12 @@ class importer
     }
 
     /**
-     * Imports a run's new rows.
+     * Imports a run's new rows. If a member is busy it stops with an error, leaving the run queued,
+     * and the task tries again; rows already imported are not imported twice.
      *
      * @param int $runid The run.
      * @return int How many entries were created.
+     * @throws \moodle_exception If a member is busy.
      */
     public static function import_run(int $runid): int {
         global $DB;
@@ -76,6 +78,28 @@ class importer
         }
         $DB->update_record(auditor::RUN_TABLE, (object) ['id' => $runid, 'status' => 'imported', 'timemodified' => time()]);
         return $imported;
+    }
+
+    /**
+     * Returns the conflicts waiting for staff: each record's latest audit, whichever audit that was
+     * (everyone, one member, or another file), where it was a conflict and nobody has decided.
+     *
+     * @return \stdClass[] Audited rows.
+     */
+    public static function get_open_conflicts(): array {
+        global $DB;
+        return $DB->get_records_sql(
+            'SELECT r.*
+               FROM {' . auditor::ROW_TABLE . '} r
+               JOIN {' . auditor::RUN_TABLE . '} u ON u.id = r.runid
+              WHERE r.outcome = :conflict AND r.decision IS NULL
+                AND r.id = (SELECT MAX(r2.id)
+                              FROM {' . auditor::ROW_TABLE . '} r2
+                              JOIN {' . auditor::RUN_TABLE . '} u2 ON u2.id = r2.runid
+                             WHERE r2.rowkey = r.rowkey AND u2.source = u.source)
+           ORDER BY r.memberid, r.activitydate, r.id',
+            ['conflict' => 'conflict']
+        );
     }
 
     /**
@@ -94,13 +118,15 @@ class importer
             throw new \moodle_exception('import:notconflict', 'local_cpdlog');
         }
         $source = $DB->get_field(auditor::RUN_TABLE, 'source', ['id' => $row->runid], MUST_EXIST);
+        // The import comes first: if the member is busy it throws, and the decision is not recorded.
+        $imported = $decision === 'import' && self::import_row($row, $source, $staffid);
         $DB->update_record(auditor::ROW_TABLE, (object) [
             'id' => $rowid,
             'decision' => $decision,
             'decidedby' => $staffid,
             'timedecided' => time(),
         ]);
-        return $decision === 'import' && self::import_row($row, $source, $staffid);
+        return $imported;
     }
 
     /**
@@ -110,7 +136,8 @@ class importer
      * @param \stdClass $row The audited row.
      * @param string $source The run's source: imis or csv.
      * @param int $staffid The staff member importing; 0 for the nightly task.
-     * @return bool Whether an entry was created.
+     * @return bool Whether an entry was created; false when it must not be (already imported, or deleted).
+     * @throws \moodle_exception If the member is busy, so the caller can try again later.
      */
     public static function import_row(\stdClass $row, string $source, int $staffid): bool {
         global $DB;
@@ -120,7 +147,8 @@ class importer
         $lock = \core\lock\lock_config::get_lock_factory(data_deleter::LOCK_TYPE)
             ->get_lock(data_deleter::lock_key((int) $row->userid), 5);
         if (!$lock) {
-            return false;
+            // Not a reason to drop the record: the adhoc task, or staff, try again.
+            throw new \moodle_exception('import:locked', 'local_cpdlog');
         }
         try {
             $entrysource = auditor::entry_source($source);

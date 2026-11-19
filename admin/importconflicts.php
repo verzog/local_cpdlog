@@ -41,23 +41,16 @@ $rowid = optional_param('rowid', 0, PARAM_INT);
 $decision = optional_param('decision', '', PARAM_ALPHA);
 if ($rowid && $decision !== '') {
     require_sesskey();
-    $imported = importer::decide($rowid, $decision, (int) $USER->id);
+    try {
+        $imported = importer::decide($rowid, $decision, (int) $USER->id);
+    } catch (moodle_exception $e) {
+        redirect($url, $e->getMessage(), null, \core\output\notification::NOTIFY_ERROR);
+    }
     $message = get_string($imported ? 'import:decidedimport' : 'import:decidedskip', 'local_cpdlog');
     redirect($url, $message, null, \core\output\notification::NOTIFY_SUCCESS);
 }
 
-// Only the latest run of each source counts: earlier runs hold older copies of the same rows.
-$latest = $DB->get_records_sql_menu('SELECT source, MAX(id) FROM {' . auditor::RUN_TABLE . '} GROUP BY source');
-$rows = [];
-if ($latest) {
-    [$insql, $params] = $DB->get_in_or_equal(array_values($latest), SQL_PARAMS_NAMED);
-    $rows = $DB->get_records_select(
-        auditor::ROW_TABLE,
-        "runid {$insql} AND outcome = :conflict AND decision IS NULL",
-        $params + ['conflict' => 'conflict'],
-        'memberid, activitydate, id'
-    );
-}
+$rows = importer::get_open_conflicts();
 $runsources = $DB->get_records_menu(auditor::RUN_TABLE, null, '', 'id, source');
 $categories = [];
 foreach (category::get_records() as $category) {

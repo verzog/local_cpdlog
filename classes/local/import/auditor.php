@@ -192,8 +192,13 @@ class auditor
 
         $records = [];
         foreach ($mapped->hours as $shortname => $hours) {
+            // A key is never shortened: two records, or two categories, would then share one.
+            $rowkey = $mapped->key . '/' . $shortname;
+            if (\core_text::strlen($rowkey) > 255) {
+                return $unmatched('longkey', \core_text::substr($mapped->key, 0, 200) . '…');
+            }
             $record = (object) array_merge($base, [
-                'rowkey' => \core_text::substr($mapped->key . '/' . $shortname, 0, 255),
+                'rowkey' => $rowkey,
                 'hours' => $hours,
                 'outcome' => 'new',
             ]);
@@ -213,6 +218,13 @@ class auditor
      */
     protected function decide(\stdClass $record): void {
         global $DB;
+        if ($record->hours > entry::MAX_HOURS) {
+            // Too large for the hours column too, so it is not kept.
+            $record->outcome = 'unmatched';
+            $record->reason = 'badhours';
+            $record->hours = 0;
+            return;
+        }
         $existing = $DB->get_record(entry::TABLE, [
             'source' => self::entry_source($this->run->source),
             'externalref' => $record->rowkey,
@@ -221,16 +233,13 @@ class auditor
             $record->matchentryid = (int) $existing->id;
             $same = (int) $existing->userid === (int) $record->userid
                 && (int) $existing->categoryid === (int) $record->categoryid
-                && (int) $existing->activitydate === (int) $record->activitydate
-                && abs((float) $existing->hours - (float) $record->hours) < 0.005;
+                && self::day($existing->activitydate) === self::day($record->activitydate)
+                && abs((float) $existing->hours - (float) $record->hours) < 0.005
+                // A blank title or provider was imported as a default, so only a given one is compared.
+                && ((string) $record->title === '' || $record->title === $existing->activityname)
+                && ((string) $record->provider === '' || $record->provider === $existing->provider)
+                && (string) $record->description === (string) $existing->description;
             $record->outcome = $same ? 'existing' : 'changed';
-            return;
-        }
-        if ($record->hours > entry::MAX_HOURS) {
-            // Too large for the hours column too, so it is not kept.
-            $record->outcome = 'unmatched';
-            $record->reason = 'badhours';
-            $record->hours = 0;
             return;
         }
         $required = ['nomember' => $record->userid, 'nocategory' => $record->categoryid, 'noperiod' => $record->periodid];
@@ -256,8 +265,9 @@ class auditor
             return;
         }
         foreach ($this->entries_for($record->userid) as $entry) {
+            // Entries released from course completions keep the time of day, so days are compared.
             if (
-                (int) $entry->activitydate === (int) $record->activitydate
+                self::day($entry->activitydate) === self::day($record->activitydate)
                 && (int) $entry->categoryid === (int) $record->categoryid
                 && abs((float) $entry->hours - (float) $record->hours) < 0.005
             ) {
@@ -266,6 +276,16 @@ class auditor
                 return;
             }
         }
+    }
+
+    /**
+     * Returns the calendar day a time falls on, in the site timezone.
+     *
+     * @param int|string $time The time.
+     * @return string YYYY-MM-DD.
+     */
+    protected static function day($time): string {
+        return (new \DateTimeImmutable('@' . (int) $time))->setTimezone(\core_date::get_server_timezone_object())->format('Y-m-d');
     }
 
     /**

@@ -393,4 +393,150 @@ final class import_test extends \advanced_testcase
         // The decided run and the new one are left.
         $this->assertSame(2, $DB->count_records(auditor::RUN_TABLE));
     }
+
+    /**
+     * A course completion released with its time of day still counts as the same day, and a
+     * changed record whose hours no longer fit is unmatched rather than stopping the audit.
+     */
+    public function test_days_and_changed_hours(): void {
+        global $DB;
+        $generator = $this->getDataGenerator()->get_plugin_generator('local_cpdlog');
+        $entry = $generator->create_entry([
+            'user' => $this->ann->username,
+            'period' => '2026',
+            'category' => 'EA',
+            'day' => '10/03/2026',
+            'hours' => 2,
+            'status' => entry::STATUS_APPROVED,
+        ]);
+        $DB->set_field(entry::TABLE, 'activitydate', self::day('2026-03-10') + 14 * HOURSECS, ['id' => $entry->get('id')]);
+        $source = self::csv([
+            ['1001', 'K1', '2026-03-10', 'Completed course', '2', '', ''],
+            ['1002', 'K2', '2026-03-12', 'Workshop', '1', '', ''],
+        ]);
+        $run = auditor::run($source, '', (int) $this->staff->id);
+        $this->assertSame('conflict', self::rows((int) $run->id)['K1/EA']->outcome);
+        importer::queue((int) $run->id, (int) $this->staff->id);
+        importer::import_run((int) $run->id);
+
+        $source = self::csv([['1002', 'K2', '2026-03-12', 'Workshop', '10000', '', '']]);
+        $rows = self::rows((int) auditor::run($source, '', (int) $this->staff->id)->id);
+        $this->assertSame('badhours', $rows['K2/EA']->reason);
+    }
+
+    /**
+     * A corrected title, provider or description is reported as changed; blank ones, imported as
+     * defaults, are not.
+     */
+    public function test_changed_details(): void {
+        // Here the Reviewing column holds the description and Other the provider.
+        set_config('importmaphours', 'EA=EducationPoints', 'local_cpdlog');
+        set_config('importmapdescription', 'Reviewing', 'local_cpdlog');
+        set_config('importmapprovider', 'Other', 'local_cpdlog');
+        $source = self::csv([['1002', 'K1', '2026-03-12', '', '1', 'Notes', '']]);
+        $run = auditor::run($source, '', (int) $this->staff->id);
+        importer::queue((int) $run->id, (int) $this->staff->id);
+        importer::import_run((int) $run->id);
+        $this->assertSame('existing', self::rows((int) auditor::run($source, '', 0)->id)['K1/EA']->outcome);
+
+        $changes = [
+            'title' => ['1002', 'K1', '2026-03-12', 'Corrected', '1', 'Notes', ''],
+            'description' => ['1002', 'K1', '2026-03-12', '', '1', 'Better notes', ''],
+            'provider' => ['1002', 'K1', '2026-03-12', '', '1', 'Notes', 'SCCA'],
+        ];
+        foreach ($changes as $field => $row) {
+            $rows = self::rows((int) auditor::run(self::csv([$row]), '', 0)->id);
+            $this->assertSame('changed', $rows['K1/EA']->outcome, $field);
+        }
+        $this->assertSame('Imported CPD', entry::get_record(['externalref' => 'K1/EA'])->get('activityname'));
+    }
+
+    /**
+     * A key too long to keep whole with its category is unmatched rather than shortened, so two
+     * categories never share one.
+     */
+    public function test_long_key(): void {
+        $key = str_repeat('k', 254);
+        $rows = self::rows((int) auditor::run(self::csv([['1001', $key, '2026-03-10', '', '1', '2', '']]), '', 0)->id);
+        $this->assertCount(1, $rows);
+        $this->assertSame('longkey', reset($rows)->reason);
+    }
+
+    /**
+     * A busy member stops the import with an error to try again, without marking the run imported
+     * or recording a decision.
+     */
+    public function test_busy_member(): void {
+        global $CFG, $DB;
+        // Database locks can be taken twice on one connection; file locks cannot.
+        $CFG->lock_factory = '\\core\\lock\\file_lock_factory';
+        $generator = $this->getDataGenerator()->get_plugin_generator('local_cpdlog');
+        $generator->create_entry([
+            'user' => $this->ann->username,
+            'period' => '2026',
+            'category' => 'EA',
+            'day' => '10/03/2026',
+            'hours' => 2,
+            'status' => entry::STATUS_APPROVED,
+        ]);
+        $source = self::csv([
+            ['1001', 'K1', '2026-03-10', '', '2', '', ''],
+            ['1001', 'K2', '2026-03-11', '', '1', '', ''],
+        ]);
+        $run = auditor::run($source, '', (int) $this->staff->id);
+        $rows = self::rows((int) $run->id);
+        importer::queue((int) $run->id, (int) $this->staff->id);
+
+        $lock = \core\lock\lock_config::get_lock_factory(data_deleter::LOCK_TYPE)
+            ->get_lock(data_deleter::lock_key((int) $this->ann->id), 1);
+        try {
+            $calls = [
+                fn() => importer::import_run((int) $run->id),
+                fn() => importer::decide((int) $rows['K1/EA']->id, 'import', 2),
+            ];
+            foreach ($calls as $call) {
+                try {
+                    $call();
+                    $this->fail('Expected an exception');
+                } catch (\moodle_exception $e) {
+                    $this->assertSame('import:locked', $e->errorcode);
+                }
+            }
+        } finally {
+            $lock->release();
+        }
+        $this->assertSame('queued', $this->get_run((int) $run->id)->status);
+        $this->assertNull($DB->get_field(auditor::ROW_TABLE, 'decision', ['id' => $rows['K1/EA']->id]));
+        $this->assertSame(1, importer::import_run((int) $run->id));
+    }
+
+    /**
+     * Open conflicts are each record's latest audit, so a later one-member audit or another file
+     * does not hide other members' conflicts, and a record audited again shows once.
+     */
+    public function test_open_conflicts(): void {
+        $generator = $this->getDataGenerator()->get_plugin_generator('local_cpdlog');
+        foreach ([$this->ann, $this->ben] as $user) {
+            $generator->create_entry([
+                'user' => $user->username,
+                'period' => '2026',
+                'category' => 'EA',
+                'day' => '10/03/2026',
+                'hours' => 2,
+                'status' => entry::STATUS_APPROVED,
+            ]);
+        }
+        $source = self::csv([
+            ['1001', 'A1', '2026-03-10', '', '2', '', ''],
+            ['1002', 'B1', '2026-03-10', '', '2', '', ''],
+        ]);
+        auditor::run($source, '', 0);
+        $latest = auditor::run($source, '1001', 0);
+        $open = importer::get_open_conflicts();
+        $this->assertSame(['A1/EA', 'B1/EA'], array_values(array_column($open, 'rowkey')));
+        $this->assertEquals($latest->id, reset($open)->runid);
+
+        importer::decide((int) reset($open)->id, 'skip', (int) $this->staff->id);
+        $this->assertSame(['B1/EA'], array_values(array_column(importer::get_open_conflicts(), 'rowkey')));
+    }
 }
