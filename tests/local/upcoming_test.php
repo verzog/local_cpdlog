@@ -93,6 +93,8 @@ final class upcoming_test extends \advanced_testcase
         $generator->create_course([
             'fullname' => 'Archived course',
             'category' => $hiddencategory->id,
+            // Visible itself, which a new course in a hidden category is not by default.
+            'visible' => 1,
             'startdate' => self::sydney('2026-03-06'),
             'customfield_' . course_cpd::FIELD_HOURS => 1,
         ]);
@@ -221,8 +223,41 @@ final class upcoming_test extends \advanced_testcase
         $this->getDataGenerator()->enrol_user($this->member->id, $this->courses['open']->id);
         $this->assertSame([], upcoming::get_lists((int) $this->member->id, $this->now)['available']);
 
-        \cache::make('local_cpdlog', 'upcoming')->purge();
+        // Once the cached list expires, it is loaded again.
+        $cache = \cache::make('local_cpdlog', 'upcoming');
+        $cached = $cache->get('items');
+        $cached->expires = time() - 1;
+        $cache->set('items', $cached);
         $this->assertCount(4, upcoming::get_lists((int) $this->member->id, $this->now)['mine']);
+    }
+
+    /**
+     * A course start is shown on its day in the site timezone, whatever the member's own timezone;
+     * an event's time is shown in the member's timezone.
+     */
+    public function test_member_timezone(): void {
+        global $DB;
+        $this->event('Webinar', '2026-03-04 18:30', 'enrolled');
+        $DB->set_field('user', 'timezone', 'Europe/London', ['id' => $this->member->id]);
+        $this->setUser($DB->get_record('user', ['id' => $this->member->id]));
+
+        $mine = array_column(upcoming::get_lists((int) $this->member->id, $this->now)['mine'], 'date', 'title');
+        $this->assertSame('11/03/2026', $mine['Enrolled course']);
+        $this->assertSame('04/03/2026, 07:30 AM', $mine['Webinar']);
+    }
+
+    /**
+     * Names are cached as stored and formatted for each member, so filters such as multi-language
+     * content follow the member's language, not that of whoever filled the cache.
+     */
+    public function test_names_formatted_per_member(): void {
+        $this->event('<span lang="en" class="multilang">Webinar</span>', '2026-03-04 18:30', 'enrolled');
+        upcoming::get_lists((int) $this->member->id, $this->now);
+        $cached = \cache::make('local_cpdlog', 'upcoming')->get('items');
+        $titles = array_column($cached->items, 'title');
+        $this->assertContains('<span lang="en" class="multilang">Webinar</span>', $titles);
+        $hours = array_column($cached->items, 'hours');
+        $this->assertContains(2.5, $hours);
     }
 
     /**

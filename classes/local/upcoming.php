@@ -123,8 +123,9 @@ class upcoming
                 'iscourse' => $item->type === 'course',
                 'title' => $item->title,
                 'coursename' => $item->coursename,
-                // Days and hours keep their leading zeros: DD/MM/YYYY, as elsewhere in the logbook.
-                'date' => userdate($item->timestart, $format, 99, false, false),
+                // A course start is a day in the site timezone, as the window is; an event's time is shown in the
+                // member's own. Days and hours keep their leading zeros: DD/MM/YYYY, as elsewhere in the logbook.
+                'date' => userdate($item->timestart, $format, $item->allday ? \core_date::get_server_timezone() : 99, false, false),
                 'hours' => $item->hours,
                 'category' => $item->category,
                 'url' => $item->url,

@@ -63,12 +63,21 @@ class moodle_source implements source
 
         $enrolled = array_map('intval', array_keys(enrol_get_all_users_courses($userid, true, 'id')));
         $items = [];
-        foreach ($cached->items as $item) {
-            $item = clone $item;
-            // A category event is the member's when they take any CPD course in that category.
-            $item->mine = (bool) array_intersect($item->courseids, $enrolled);
-            unset($item->courseids);
-            $items[] = $item;
+        foreach ($cached->items as $raw) {
+            // Names are formatted here, not before caching, so each member gets them in their own language.
+            $coursecontext = $raw->courseid ? \context_course::instance($raw->courseid, IGNORE_MISSING) : null;
+            $items[] = (object) [
+                'type' => $raw->type,
+                'title' => self::plain($raw->title, \context::instance_by_id($raw->contextid)),
+                'coursename' => $coursecontext ? self::plain($raw->coursename, $coursecontext) : '',
+                'timestart' => $raw->timestart,
+                'allday' => $raw->allday,
+                'hours' => $raw->hours === null ? '' : format_float($raw->hours, 2),
+                'category' => $raw->category === '' ? '' : self::plain($raw->category, \context_system::instance()),
+                'url' => $raw->url,
+                // A category event is the member's when they take any CPD course in that category.
+                'mine' => (bool) array_intersect($raw->courseids, $enrolled),
+            ];
         }
         return $items;
     }
@@ -78,7 +87,9 @@ class moodle_source implements source
      *
      * @param int $from The start of the window.
      * @param int $to The end of the window.
-     * @return \stdClass[] Items as in source, with courseids (the courses the item belongs to) instead of mine.
+     * @return \stdClass[] Unformatted items: type, title and contextid (to format it in), courseid and
+     *                     coursename (0 and '' for none), timestart, allday, hours (float or null),
+     *                     category (unformatted name or ''), url and courseids (the courses it belongs to).
      */
     protected static function load(int $from, int $to): array {
         global $DB;
@@ -100,12 +111,11 @@ class moodle_source implements source
         $items = [];
         $bycategory = [];
         foreach ($courses as $course) {
-            $context = \context_course::instance($course->id);
-            $course->name = self::plain($course->fullname, $context);
+            $course->contextid = \context_course::instance($course->id)->id;
             $course->cpd = self::course_cpd((int) $course->id);
             $bycategory[$course->category][] = (int) $course->id;
             if ($course->startdate >= $from && $course->startdate < $to) {
-                $items[] = self::item('course', $course->name, $course, (int) $course->startdate, true, [(int) $course->id]);
+                $items[] = self::item('course', $course->fullname, $course->contextid, $course, (int) $course->startdate, true);
             }
         }
 
@@ -121,13 +131,11 @@ class moodle_source implements source
         foreach ($DB->get_records_sql($sql, $params) as $event) {
             if ($event->eventtype === 'course') {
                 $course = $courses[$event->courseid];
-                $context = \context_course::instance($course->id);
-                $title = self::plain($event->name, $context);
-                $items[] = self::item('event', $title, $course, (int) $event->timestart, false, [(int) $course->id]);
+                $items[] = self::item('event', $event->name, $course->contextid, $course, (int) $event->timestart, false);
             } else {
-                $context = \context_coursecat::instance($event->categoryid);
-                $title = self::plain($event->name, $context);
-                $item = self::item('event', $title, null, (int) $event->timestart, false, $bycategory[$event->categoryid]);
+                $contextid = \context_coursecat::instance($event->categoryid)->id;
+                $item = self::item('event', $event->name, $contextid, null, (int) $event->timestart, false);
+                $item->courseids = $bycategory[$event->categoryid];
                 $item->url = (new \moodle_url('/calendar/view.php', [
                     'view' => 'day',
                     'time' => $event->timestart,
@@ -142,35 +150,37 @@ class moodle_source implements source
     }
 
     /**
-     * Returns one item.
+     * Returns one unformatted item.
      *
      * @param string $type course or event.
-     * @param string $title Plain-text title.
-     * @param \stdClass|null $course The course it belongs to, with name and cpd, or null.
+     * @param string $title The title as stored.
+     * @param int $contextid The context to format the title in.
+     * @param \stdClass|null $course The course it belongs to, with contextid and cpd, or null.
      * @param int $timestart When it starts.
      * @param bool $allday Whether only the date matters.
-     * @param int[] $courseids The courses it belongs to.
      * @return \stdClass
      */
     protected static function item(
         string $type,
         string $title,
+        int $contextid,
         ?\stdClass $course,
         int $timestart,
-        bool $allday,
-        array $courseids
+        bool $allday
     ): \stdClass {
         $cpd = $course ? $course->cpd : null;
         return (object) [
             'type' => $type,
             'title' => $title,
-            'coursename' => $course ? $course->name : '',
+            'contextid' => $contextid,
+            'courseid' => $course ? (int) $course->id : 0,
+            'coursename' => $course ? $course->fullname : '',
             'timestart' => $timestart,
             'allday' => $allday,
-            'hours' => $cpd ? format_float($cpd->hours, 2) : '',
-            'category' => $cpd ? self::plain($cpd->category->get('name'), \context_system::instance()) : '',
+            'hours' => $cpd ? (float) $cpd->hours : null,
+            'category' => $cpd ? (string) $cpd->category->get('name') : '',
             'url' => $course ? (new \moodle_url('/course/view.php', ['id' => $course->id]))->out(false) : '',
-            'courseids' => $courseids,
+            'courseids' => $course ? [(int) $course->id] : [],
         ];
     }
 
