@@ -175,6 +175,71 @@ if ($hassiteconfig) {
         }
     }
     $ADMIN->add('local_cpdlog', $settings);
+
+    // Importing CPD history from iMIS or a CSV file (decision 25).
+    $importsettings = new admin_settingpage('local_cpdlog_importsettings', new lang_string('importsettings', 'local_cpdlog'));
+    if ($ADMIN->fulltree) {
+        $importsettings->add(new admin_setting_heading(
+            'local_cpdlog/importheading',
+            '',
+            new lang_string('importsettings_desc', 'local_cpdlog')
+        ));
+        $importsettings->add(new admin_setting_configtext(
+            'local_cpdlog/importiqa',
+            new lang_string('importiqa', 'local_cpdlog'),
+            new lang_string('importiqa_desc', 'local_cpdlog'),
+            '',
+            PARAM_RAW_TRIMMED
+        ));
+        $importsettings->add(new admin_setting_configtext(
+            'local_cpdlog/importobject',
+            new lang_string('importobject', 'local_cpdlog'),
+            new lang_string('importobject_desc', 'local_cpdlog'),
+            'CPDLogbook',
+            '/^([A-Za-z][A-Za-z0-9_]{0,63})?$/'
+        ));
+        $importsettings->add(new admin_setting_configselect(
+            'local_cpdlog/importmatch',
+            new lang_string('importmatch', 'local_cpdlog'),
+            new lang_string('importmatch_desc', 'local_cpdlog'),
+            'imis',
+            [
+                'imis' => new lang_string('importmatch:imis', 'local_cpdlog'),
+                'idnumber' => new lang_string('idnumber'),
+                'username' => new lang_string('username'),
+                'email' => new lang_string('email'),
+            ]
+        ));
+        foreach (['member', 'key', 'date', 'title', 'provider', 'description'] as $column) {
+            $importsettings->add(new admin_setting_configtext(
+                'local_cpdlog/importmap' . $column,
+                new lang_string('importmap' . $column, 'local_cpdlog'),
+                new lang_string('importmap' . $column . '_desc', 'local_cpdlog'),
+                '',
+                PARAM_RAW_TRIMMED
+            ));
+        }
+        $importsettings->add(new admin_setting_configtextarea(
+            'local_cpdlog/importmaphours',
+            new lang_string('importmaphours', 'local_cpdlog'),
+            new lang_string('importmaphours_desc', 'local_cpdlog'),
+            '',
+            PARAM_RAW
+        ));
+        $importsettings->add(new admin_setting_configcheckbox(
+            'local_cpdlog/importnightly',
+            new lang_string('importnightly', 'local_cpdlog'),
+            new lang_string('importnightly_desc', 'local_cpdlog'),
+            0
+        ));
+        $importsettings->add(new admin_setting_configcheckbox(
+            'local_cpdlog/importdryrun',
+            new lang_string('importdryrun', 'local_cpdlog'),
+            new lang_string('importdryrun_desc', 'local_cpdlog'),
+            1
+        ));
+    }
+    $ADMIN->add('local_cpdlog', $importsettings);
 }
 
 // Management pages are visible to holders of local/cpdlog:manageperiods, not only site administrators.
@@ -210,4 +275,10 @@ $ADMIN->add('local_cpdlog', new admin_externalpage(
     new lang_string('deletedata', 'local_cpdlog'),
     new moodle_url('/local/cpdlog/admin/deletedata.php'),
     'local/cpdlog:deletedata'
+));
+$ADMIN->add('local_cpdlog', new admin_externalpage(
+    'local_cpdlog_import',
+    new lang_string('import', 'local_cpdlog'),
+    new moodle_url('/local/cpdlog/admin/import.php'),
+    'local/cpdlog:sync'
 ));

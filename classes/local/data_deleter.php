@@ -25,6 +25,7 @@
 namespace local_cpdlog\local;
 
 use local_cpdlog\event\member_data_deleted;
+use local_cpdlog\local\import\auditor;
 use local_cpdlog\persistent\category;
 use local_cpdlog\persistent\entry;
 use local_cpdlog\persistent\period;
@@ -237,6 +238,8 @@ final class data_deleter
         $DB->delete_records(target_resolver::CHOICE_TABLE, ['userid' => $userid]);
         $DB->delete_records(reminder::TABLE, ['userid' => $userid]);
         $DB->delete_records(course_cpd::TABLE, ['userid' => $userid]);
+        // Audited history is not imported again either: the audit guard blocks records dated before now.
+        $DB->delete_records(auditor::ROW_TABLE, ['userid' => $userid]);
         self::clear_staff_traces($userid);
 
         // Image blog awards that exist now are never copied back into the logbook (decision 18).
@@ -268,7 +271,8 @@ final class data_deleter
         foreach (self::staff_fields() as [$table, $field]) {
             $select = "{$field} = :staffid";
             $params = ['staffid' => $userid];
-            if (in_array($table, [entry::TABLE, target_resolver::CHOICE_TABLE, course_cpd::TABLE], true)) {
+            $owntables = [entry::TABLE, target_resolver::CHOICE_TABLE, course_cpd::TABLE, auditor::ROW_TABLE];
+            if (in_array($table, $owntables, true)) {
                 // The member's own rows are deleted, not changed.
                 $select .= ' AND userid <> :userid';
                 $params['userid'] = $userid;
@@ -307,6 +311,9 @@ final class data_deleter
             [period::TABLE, 'usermodified', false],
             [target::TABLE, 'usermodified', false],
             [course_cpd::TABLE, 'actionedby', false],
+            [auditor::ROW_TABLE, 'decidedby', false],
+            [auditor::RUN_TABLE, 'requestedby', false],
+            [auditor::RUN_TABLE, 'importedby', false],
         ];
     }
 }

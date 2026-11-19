@@ -23,6 +23,7 @@ agreed design decisions and the build plan.
 - [Upcoming CPD](#upcoming-cpd)
 - [CPD from course completions](#cpd-from-course-completions)
 - [CPD from the image blog](#cpd-from-the-image-blog)
+- [Importing CPD history](#importing-cpd-history)
 - [Privacy and data deletion](#privacy-and-data-deletion)
 - [Development and testing](#development-and-testing)
 - [License](#license)
@@ -180,7 +181,7 @@ All capabilities are granted at site (system) level.
 | `local/cpdlog:approve` | Approve, reject or reverse CPD entries | Manager |
 | `local/cpdlog:viewall` | See all members' CPD in staff reports; download evidence | Manager |
 | `local/cpdlog:manageperiods` | Manage categories, periods, targets and cohort conflicts | Manager |
-| `local/cpdlog:sync` | Run or retry iMIS replication (for the planned iMIS link) | Manager |
+| `local/cpdlog:sync` | Audit and import CPD history from iMIS or a CSV file | Manager |
 | `local/cpdlog:deletedata` | Permanently delete a member's CPD data | Nobody |
 
 ## Using the logbook (members)
@@ -392,6 +393,46 @@ hours from the image blog_:
   if it withdraws an award, the entry is reversed and stops counting; if the award comes back, so
   does the entry, dated when it came back.
 - **Switching off:** untick _Copy CPD hours from the image blog_. Entries already copied stay.
+
+## Importing CPD history
+
+CPD history held in iMIS, or in a CSV file from any other system, can be brought into members'
+logbooks. Nothing is ever written back to the source.
+
+**Set up** (_Settings > Import settings_):
+
+1. **Source.** For iMIS, an IQA that returns members' CPD history (_iMIS IQA_), with "Available via
+   REST API" ticked and an optional first prompt for the member ID. It uses the same iMIS connection
+   as [upcoming CPD](#upcoming-cpd). For a CSV file, nothing: the file is uploaded when auditing.
+2. **Mapping.** Name the source's columns: member ID, a key that identifies each record for good,
+   the date, and the hours column for each logbook category, one per line such as
+   `EA=EducationPoints`. Title, provider and description are optional. Each category with hours on
+   a record becomes its own entry. _Show source fields_ on the import page lists the columns the
+   IQA or file has, and the fields of an iMIS business object (_iMIS business object_, by default
+   `CPDLogbook`), so the names need not be guessed.
+3. **Match members by:** the iMIS ID (as the Membership Bridge finds it, else the ID number), or the
+   ID number, username or email address. A record only counts for a member when it matches exactly
+   one active user.
+
+**Audit and import** (_Import CPD history_, for staff with `local/cpdlog:sync`). Choose iMIS or a
+CSV file, everyone or one member, and run an audit. It changes nothing, and lists each record as:
+
+- **New:** can be imported.
+- **Conflict:** looks like an entry already in the logbook (same member, day, category and hours).
+- **Changed:** imported before, but the source now differs. Listed only; the entry is not changed.
+- **Unmatched:** no single member, no reporting period covering the date, no hours, an unreadable
+  date, an unknown category, or a member whose CPD data was deleted.
+- **Already imported** and **Skipped** (a conflict staff skipped before).
+
+_Import N new records_ then adds the new records as approved entries, in closed periods too, marked
+_From iMIS_ or _From an import_. Only the source can change them. _Import conflicts_ lists the
+conflicts from the latest audit of each source: _Import anyway_ if it is a different activity,
+_Skip_ if it is the same one. A skipped record stays skipped in later audits. Audits are kept for
+90 days; decisions on conflicts are kept for good.
+
+**Nightly** (_Nightly import from iMIS_, off by default). The task _Audit and import CPD history from
+iMIS_ audits every member each night. While _Dry run_ is ticked (the default) it only audits, so the
+results can be checked first; otherwise it imports the new records. Conflicts always wait for staff.
 
 ## Privacy and data deletion
 

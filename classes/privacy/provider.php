@@ -123,6 +123,24 @@ class provider implements
             'actionedby' => 'privacy:metadata:local_cpdlog_completion:actionedby',
             'timemodified' => 'privacy:metadata:local_cpdlog_completion:timemodified',
         ], 'privacy:metadata:local_cpdlog_completion');
+        $collection->add_database_table('local_cpdlog_import_run', [
+            'memberid' => 'privacy:metadata:local_cpdlog_import_run:memberid',
+            'requestedby' => 'privacy:metadata:local_cpdlog_import_run:requestedby',
+            'importedby' => 'privacy:metadata:local_cpdlog_import_run:importedby',
+            'timecreated' => 'privacy:metadata:local_cpdlog_import_run:timecreated',
+        ], 'privacy:metadata:local_cpdlog_import_run');
+        $collection->add_database_table('local_cpdlog_import_row', [
+            'memberid' => 'privacy:metadata:local_cpdlog_import_row:memberid',
+            'userid' => 'privacy:metadata:local_cpdlog_import_row:userid',
+            'activitydate' => 'privacy:metadata:local_cpdlog_import_row:activitydate',
+            'hours' => 'privacy:metadata:local_cpdlog_import_row:hours',
+            'title' => 'privacy:metadata:local_cpdlog_import_row:title',
+            'provider' => 'privacy:metadata:local_cpdlog_import_row:provider',
+            'description' => 'privacy:metadata:local_cpdlog_import_row:description',
+            'outcome' => 'privacy:metadata:local_cpdlog_import_row:outcome',
+            'decidedby' => 'privacy:metadata:local_cpdlog_import_row:decidedby',
+            'timedecided' => 'privacy:metadata:local_cpdlog_import_row:timedecided',
+        ], 'privacy:metadata:local_cpdlog_import_row');
         $collection->add_subsystem_link('core_files', [], 'privacy:metadata:core_files');
         $collection->add_subsystem_link('core_message', [], 'privacy:metadata:core_message');
 
@@ -173,6 +191,11 @@ class provider implements
         $userlist->add_from_sql('userid', 'SELECT userid FROM {local_cpdlog_reminder}', []);
         $userlist->add_from_sql('userid', 'SELECT userid FROM {local_cpdlog_completion}', []);
         $userlist->add_from_sql('actionedby', 'SELECT actionedby FROM {local_cpdlog_completion} WHERE actionedby > 0', []);
+        $userlist->add_from_sql('userid', 'SELECT userid FROM {local_cpdlog_import_row} WHERE userid > 0', []);
+        $userlist->add_from_sql('decidedby', 'SELECT decidedby FROM {local_cpdlog_import_row} WHERE decidedby > 0', []);
+        foreach (['requestedby', 'importedby'] as $field) {
+            $userlist->add_from_sql($field, "SELECT {$field} FROM {local_cpdlog_import_run} WHERE {$field} > 0", []);
+        }
         foreach (self::CONFIG_TABLES as $table) {
             $userlist->add_from_sql('usermodified', "SELECT usermodified FROM {{$table}} WHERE usermodified > 0", []);
         }
@@ -297,6 +320,27 @@ class provider implements
             $writer->export_data($subcontext, (object) ['completions' => $completions]);
         }
 
+        // CPD history from another system, as audited for import.
+        $imports = [];
+        foreach ($DB->get_records('local_cpdlog_import_row', ['userid' => $userid], 'activitydate, id') as $row) {
+            $imports[] = (object) [
+                'memberid' => $row->memberid,
+                'activitydate' => transform::date($row->activitydate),
+                'category' => isset($categories[$row->categoryid]) ? format_string($categories[$row->categoryid]) : null,
+                'hours' => $row->hours,
+                'title' => $row->title,
+                'provider' => $row->provider,
+                'description' => $row->description,
+                'outcome' => $row->outcome,
+                'entryid' => $row->entryid,
+                'audited' => transform::datetime($row->timecreated),
+            ];
+        }
+        if ($imports) {
+            $subcontext = [$component, get_string('privacy:imports', 'local_cpdlog')];
+            $writer->export_data($subcontext, (object) ['imports' => $imports]);
+        }
+
         // As staff, only the fact of each action is exported, not other members' CPD details.
         $actions = [];
         $sql = 'SELECT id, reviewedby, timereviewed, reversedby, timereversed, usermodified, timemodified
@@ -320,6 +364,17 @@ class provider implements
                 $completion->status => transform::datetime($completion->timemodified),
             ];
         }
+        $select = 'requestedby = :u1 OR importedby = :u2';
+        foreach ($DB->get_records_select('local_cpdlog_import_run', $select, ['u1' => $userid, 'u2' => $userid]) as $run) {
+            $actions[] = (object) [
+                'importrunid' => $run->id,
+                'audited' => $run->requestedby == $userid ? transform::datetime($run->timecreated) : null,
+                'imported' => $run->importedby == $userid ? transform::datetime($run->timemodified) : null,
+            ];
+        }
+        foreach ($DB->get_records('local_cpdlog_import_row', ['decidedby' => $userid]) as $row) {
+            $actions[] = (object) ['importrowid' => $row->id, $row->decision => transform::datetime($row->timedecided)];
+        }
         foreach ($DB->get_records('local_cpdlog_deletion', ['requestedby' => $userid]) as $deletion) {
             $actions[] = (object) ['deletionid' => $deletion->id, 'requested' => transform::datetime($deletion->timerequested)];
         }
@@ -335,7 +390,7 @@ class provider implements
     }
 
     /**
-     * Deletes only the reminder log: CPD entries are retained compliance records that staff delete
+     * Deletes only the reminder log and import audits: CPD entries are retained compliance records that staff delete
      * manually (decision 12).
      *
      * @param \context $context The context.
@@ -344,11 +399,12 @@ class provider implements
         global $DB;
         if ($context->contextlevel == CONTEXT_SYSTEM) {
             $DB->delete_records('local_cpdlog_reminder');
+            $DB->delete_records_select('local_cpdlog_import_row', 'userid IS NOT NULL');
         }
     }
 
     /**
-     * Deletes only the user's reminder log: CPD entries are retained compliance records that staff
+     * Deletes only the user's reminder log and import audits: CPD entries are retained compliance records that staff
      * delete manually (decision 12).
      *
      * @param approved_contextlist $contextlist The approved contexts.
@@ -358,12 +414,13 @@ class provider implements
         foreach ($contextlist->get_contexts() as $context) {
             if ($context->contextlevel == CONTEXT_SYSTEM) {
                 $DB->delete_records('local_cpdlog_reminder', ['userid' => $contextlist->get_user()->id]);
+                $DB->delete_records('local_cpdlog_import_row', ['userid' => $contextlist->get_user()->id]);
             }
         }
     }
 
     /**
-     * Deletes only the users' reminder log: CPD entries are retained compliance records that staff
+     * Deletes only the users' reminder log and import audits: CPD entries are retained compliance records that staff
      * delete manually (decision 12).
      *
      * @param approved_userlist $userlist The approved users.
@@ -375,6 +432,7 @@ class provider implements
         }
         [$insql, $params] = $DB->get_in_or_equal($userlist->get_userids(), SQL_PARAMS_NAMED);
         $DB->delete_records_select('local_cpdlog_reminder', "userid {$insql}", $params);
+        $DB->delete_records_select('local_cpdlog_import_row', "userid {$insql}", $params);
     }
 
     /**
@@ -403,6 +461,14 @@ class provider implements
         }
         $select = 'userid = :u1 OR actionedby = :u2';
         if ($DB->record_exists_select('local_cpdlog_completion', $select, ['u1' => $userid, 'u2' => $userid])) {
+            return true;
+        }
+        $select = 'userid = :u1 OR decidedby = :u2';
+        if ($DB->record_exists_select('local_cpdlog_import_row', $select, ['u1' => $userid, 'u2' => $userid])) {
+            return true;
+        }
+        $select = 'requestedby = :u1 OR importedby = :u2';
+        if ($DB->record_exists_select('local_cpdlog_import_run', $select, ['u1' => $userid, 'u2' => $userid])) {
             return true;
         }
         foreach (self::CONFIG_TABLES as $table) {

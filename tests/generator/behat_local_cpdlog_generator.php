@@ -59,6 +59,11 @@ class behat_local_cpdlog_generator extends behat_generator_base
                 'datagenerator' => 'course_completion',
                 'required' => ['user', 'course'],
             ],
+            'import rows' => [
+                'singular' => 'import row',
+                'datagenerator' => 'import_row',
+                'required' => ['key', 'day'],
+            ],
             'deleted accounts' => [
                 'singular' => 'deleted account',
                 'datagenerator' => 'deleted_account',

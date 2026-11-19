@@ -124,4 +124,39 @@ class connection
         $id = trim((string) ($user->idnumber ?? ''));
         return preg_match('/^[A-Za-z0-9_-]{1,64}$/', $id) ? $id : '';
     }
+
+    /**
+     * Finds the Moodle user an iMIS ID belongs to: as the Membership Bridge finds them when installed,
+     * else the one active user with that ID number.
+     *
+     * @param string $memberid The iMIS ID.
+     * @return \stdClass|null The user (id), or null when none or more than one match.
+     */
+    public static function find_user(string $memberid): ?\stdClass {
+        if ($memberid === '') {
+            return null;
+        }
+        if (self::bridge_installed()) {
+            $user = \local_membershipbridge\util::find_user_by_imis_id($memberid);
+            return $user && empty($user->deleted) ? $user : null;
+        }
+        return self::find_user_by('idnumber', $memberid);
+    }
+
+    /**
+     * Finds the one active user whose field matches exactly (email ignoring case).
+     *
+     * @param string $field idnumber, username or email.
+     * @param string $value The value.
+     * @return \stdClass|null The user (id), or null when none or more than one match.
+     */
+    public static function find_user_by(string $field, string $value): ?\stdClass {
+        global $DB;
+        if ($value === '' || !in_array($field, ['idnumber', 'username', 'email'], true)) {
+            return null;
+        }
+        $where = $field === 'email' ? $DB->sql_equal('email', ':value', false) : "{$field} = :value";
+        $users = $DB->get_records_select('user', "{$where} AND deleted = 0", ['value' => $value], 'id', 'id', 0, 2);
+        return count($users) === 1 ? reset($users) : null;
+    }
 }

@@ -216,6 +216,14 @@ final class data_deleter_test extends \advanced_testcase
             'timecreated' => 1000,
             'timemodified' => 1000,
         ]);
+        $runid = $DB->insert_record(\local_cpdlog\local\import\auditor::RUN_TABLE, (object) [
+            'source' => 'csv',
+            'status' => 'imported',
+            'requestedby' => $staff->id,
+            'importedby' => $staff->id,
+            'timecreated' => 1000,
+            'timemodified' => 1000,
+        ]);
         $this->setUser($staff);
         $category = category::get_record(['shortname' => 'EA']);
         $category->set('name', 'Education');
@@ -223,8 +231,9 @@ final class data_deleter_test extends \advanced_testcase
         $this->setAdminUser();
 
         set_config('enabledeletion', 1, 'local_cpdlog');
-        // Reviewer, reverser and last editor of one entry, a cohort choice, an exclusion, and a category.
-        $this->assertSame(6, data_deleter::count((int) $staff->id)->stafftraces);
+        // Reviewer, reverser and last editor of one entry, a cohort choice, an exclusion, a category, and
+        // the auditor and importer of an import.
+        $this->assertSame(8, data_deleter::count((int) $staff->id)->stafftraces);
         data_deleter::queue((int) $staff->id, (int) $this->admin->id);
         $this->runAdhocTasks(delete_member_data::class);
 
@@ -238,6 +247,9 @@ final class data_deleter_test extends \advanced_testcase
         $this->assertEquals(0, $choice->chosenby);
         $completion = $DB->get_record(course_cpd::TABLE, ['id' => $completionid]);
         $this->assertEquals(0, $completion->actionedby);
+        $run = $DB->get_record(\local_cpdlog\local\import\auditor::RUN_TABLE, ['id' => $runid]);
+        $this->assertEquals(0, $run->requestedby);
+        $this->assertEquals(0, $run->importedby);
         $this->assertSame(course_cpd::STATUS_EXCLUDED, $completion->status);
         $this->assertEquals(0, $DB->get_field(category::TABLE, 'usermodified', ['shortname' => 'EA']));
         $this->assertSame('Education', $DB->get_field(category::TABLE, 'name', ['shortname' => 'EA']));
