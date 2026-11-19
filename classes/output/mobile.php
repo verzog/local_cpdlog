@@ -26,6 +26,7 @@ namespace local_cpdlog\output;
 
 use local_cpdlog\local\display;
 use local_cpdlog\local\entry_manager;
+use local_cpdlog\local\upcoming;
 use local_cpdlog\persistent\category;
 use local_cpdlog\persistent\entry;
 use local_cpdlog\persistent\period;
@@ -135,7 +136,10 @@ class mobile
         return [
             'templates' => [[
                 'id' => 'main',
-                'html' => $OUTPUT->render_from_template('local_cpdlog/mobileapp/logbook', ['cansubmit' => $cansubmit]),
+                'html' => $OUTPUT->render_from_template('local_cpdlog/mobileapp/logbook', [
+                    'cansubmit' => $cansubmit,
+                    'upcomingdays' => upcoming::get_days(),
+                ]),
             ]],
             'javascript' => file_get_contents(__DIR__ . '/../../mobileapp/logbook.js'),
             'otherdata' => [
@@ -143,6 +147,10 @@ class mobile
                 'periods' => json_encode($periodoptions),
                 'progress' => json_encode($shown ? display::progress($userid, $shown) : null),
                 'entries' => json_encode($entries),
+                // Both lists are sent, so switching between them works offline too.
+                'upcoming' => json_encode(upcoming::is_enabled() ? upcoming::get_lists($userid) : null),
+                'upcomingfilter' => json_encode(upcoming::FILTER_MINE),
+                'upcomingdays' => json_encode(upcoming::get_days()),
             ],
         ];
     }

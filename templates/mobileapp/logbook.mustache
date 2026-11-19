@@ -25,10 +25,12 @@
 
     Context variables required for this template:
     * cansubmit - Whether the member may log entries.
+    * upcomingdays - How many days ahead upcoming CPD covers.
 
     Example context (json):
     {
-        "cansubmit": true
+        "cansubmit": true,
+        "upcomingdays": 60
     }
 }}
 {{=<% %>=}}
@@ -60,6 +62,45 @@
             <p *ngIf="target.pending">{{ target.pending }}</p>
         </div>
         <p *ngIf="!CONTENT_OTHERDATA.progress.hastargets"><%#str%> notargets, local_cpdlog <%/str%></p>
+    </ion-card-content>
+</ion-card>
+
+<ion-card *ngIf="CONTENT_OTHERDATA.upcoming">
+    <ion-card-header>
+        <ion-card-title><%#str%> upcoming, local_cpdlog <%/str%></ion-card-title>
+    </ion-card-header>
+    <ion-segment [(ngModel)]="CONTENT_OTHERDATA.upcomingfilter">
+        <ion-segment-button value="mine">
+            <ion-label><%#str%> upcoming:mine, local_cpdlog <%/str%></ion-label>
+        </ion-segment-button>
+        <ion-segment-button value="available">
+            <ion-label><%#str%> upcoming:available, local_cpdlog <%/str%></ion-label>
+        </ion-segment-button>
+    </ion-segment>
+    <ion-list>
+        <ion-item *ngFor="let item of CONTENT_OTHERDATA.upcoming[CONTENT_OTHERDATA.upcomingfilter]"
+                [href]="item.url" core-link [capture]="true" detail="true">
+            <ion-label>
+                <h3>{{ item.title }}</h3>
+                <p>{{ item.date }}</p>
+                <p>
+                    <ion-badge *ngIf="item.iscourse" color="tertiary">
+                        <%#str%> upcoming:coursestarts, local_cpdlog <%/str%>
+                    </ion-badge>
+                    <span *ngIf="!item.iscourse">{{ item.coursename }}</span>
+                    <span *ngIf="item.hours"> · {{ item.hours }} <%#str%> hours, local_cpdlog <%/str%></span>
+                    <span *ngIf="item.category"> · {{ item.category }}</span>
+                </p>
+            </ion-label>
+        </ion-item>
+    </ion-list>
+    <ion-card-content *ngIf="!CONTENT_OTHERDATA.upcoming[CONTENT_OTHERDATA.upcomingfilter].length">
+        <p *ngIf="CONTENT_OTHERDATA.upcomingfilter == 'mine'">
+            <%#str%> upcoming:nonemine, local_cpdlog, <% upcomingdays %> <%/str%>
+        </p>
+        <p *ngIf="CONTENT_OTHERDATA.upcomingfilter != 'mine'">
+            <%#str%> upcoming:noneavailable, local_cpdlog, <% upcomingdays %> <%/str%>
+        </p>
     </ion-card-content>
 </ion-card>
 

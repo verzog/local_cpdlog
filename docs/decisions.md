@@ -172,6 +172,15 @@ scoping", 24/09/2026). Where this file and the scoping document differ, this fil
     cache of the last one loaded; changes need a connection. Entries are saved through
     `local_cpdlog_save_entry`, which applies the website form's rules (including evidence before
     submitting) and edits descriptions as plain text, keeping a description it is not sent.
+23. **Upcoming CPD** (agreed 19/11/2026; phase 8, part 2). The logbook page and the app's logbook
+    show the CPD coming up in a window of calendar days (default 60) from the start of today: the
+    start dates of visible courses with _CPD hours_ set, and course events in them and category
+    events in their categories. A switch shows _Mine_ (courses the member is actively enrolled in)
+    or _Available_ (the rest); the app gets both lists so switching works offline. Moodle is the
+    only source for now, behind `local_cpdlog\local\upcoming\source` so iMIS can replace it
+    (decision 8). The list, the same for everyone, is kept in an application cache for 15 minutes;
+    each member's items are picked out afresh from their enrolments. Settings switch it off and set
+    the window and list length.
 
 ## Schema notes
 
@@ -221,7 +230,7 @@ standard, including the boilerplate sniff, with no `.phpcs.xml` overrides.
 | 5. Privacy and hardening | Full privacy provider, PHPUnit and Behat coverage; staff deletion tool | Done |
 | 6. iMIS push | On hold until the iMIS write path is proven in sccadev | |
 | 7. iMIS pull | Read-only import and conflict detection | |
-| 8. Calendar and events | Period dates in the calendar, reminders (decision 19); upcoming events | In progress |
+| 8. Calendar and events | Period dates in the calendar, reminders (decision 19); upcoming CPD (decision 23) | Done |
 | Image blog | Copy CPD awarded by `local_imageblog` into the logbook | Done |
 | Moodle App | Logbook in the app: view offline, log and submit entries (decision 22) | In progress |
 | External and course CPD | External activities (decision 20); CPD from course completions (decision 21) | Done |

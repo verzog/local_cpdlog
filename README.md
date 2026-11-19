@@ -20,6 +20,7 @@ agreed design decisions and the build plan.
 - [Approving CPD (approvers)](#approving-cpd-approvers)
 - [Staff reports](#staff-reports)
 - [Calendar and reminders](#calendar-and-reminders)
+- [Upcoming CPD](#upcoming-cpd)
 - [CPD from course completions](#cpd-from-course-completions)
 - [CPD from the image blog](#cpd-from-the-image-blog)
 - [Privacy and data deletion](#privacy-and-data-deletion)
@@ -87,6 +88,8 @@ Open _Settings_:
 - **Send CPD reminders** (default on) and **Reminder days** (default 60,14): remind members who
   are behind on their targets before a reporting period closes. See
   [Calendar and reminders](#calendar-and-reminders).
+- **Show upcoming CPD** (default on), **Days ahead** (default 60) and **Items in each list**
+  (default 10): see [Upcoming CPD](#upcoming-cpd).
 - **Allow CPD data deletion** (default off): switches on the deletion tool described in
   [Privacy and data deletion](#privacy-and-data-deletion). Leave it off until it is needed.
 - **Image blog** (only shown when the image blog plugin, `local_imageblog`, is installed): whether
@@ -226,6 +229,7 @@ may need to log out of the app and back in, or pull down to refresh the site, th
 In the app, members can:
 
 - see their progress against their targets, and choose another reporting period;
+- see [upcoming CPD](#upcoming-cpd), mine or available;
 - see their entries with their status, rejection or reversal reasons and evidence;
 - log a new activity, or edit a draft or rejected entry, attaching evidence from the phone's
   camera, photos or files, then save it as a draft or submit it for review;
@@ -327,6 +331,28 @@ members who have not yet met all their targets in an open period:
 A log of the reminders sent is kept so none is sent twice. It is part of the member's data for
 privacy requests and, unlike CPD entries, is removed when the member asks for their data to be
 deleted or when staff delete their CPD data.
+
+## Upcoming CPD
+
+Members' logbooks, on the website and in the Moodle App, list the CPD coming up in the next 60
+days, with a switch between two lists:
+
+- **Mine:** what is coming up in courses that award CPD (those with _CPD hours_ set) that the member
+  is enrolled in: the course starting, and course events in it.
+- **Available:** the same for the other visible courses that award CPD, so members can find CPD to
+  enrol in. Hidden courses are never listed.
+
+Category events (added in the calendar for a course category) are listed too, under _Mine_ when the
+member takes a CPD course in that category, and otherwise under _Available_. Each item shows its
+date (and time for events), the course, its CPD hours and category, and links to the course, or for
+a category event to the calendar. Events that started earlier today stay listed all day.
+
+Settings, under _Upcoming CPD_: switch it off, choose how many days ahead it looks (1 to 366) and how
+many items each list shows (1 to 50, default 10). The list is cached for up to 15 minutes, so a new
+course or event can take that long to appear; enrolling counts at once.
+
+Upcoming CPD comes from Moodle for now. It is fetched through its own class
+(`local_cpdlog\local\upcoming\source`), so an iMIS event feed can replace it later.
 
 ## CPD from the image blog
 
