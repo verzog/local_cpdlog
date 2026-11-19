@@ -211,6 +211,71 @@ scoping", 24/09/2026). Where this file and the scoping document differ, this fil
 - Cohort conflict resolution (decision 3) is in `local_cpdlog\local\target_resolver`,
   which also answers which targets apply to a member; reporting (phase 4) reuses it.
 
+## iMIS research for phases 6 and 7 (19/11/2026)
+
+Findings from the two sibling projects that already talk to SCCA's iMIS: `verzog/wormiss` (a
+WordPress iMIS bridge adapted from the Moodle one) and `verzog/moodle-local_membershipbridge`
+(the Moodle–iMIS bridge). They are notes for planning, not decisions; items marked _to confirm_
+need checking on sccadev.
+
+**Event feed (for upcoming CPD, decision 23).**
+- No IQA is needed: wormiss lists upcoming events from the standard Events API,
+  `GET /api/Event?StartDateTime=ge:YYYY-MM-DD` (falling back to an unfiltered read if iMIS
+  rejects the filter), paged through `HasNext`/`NextOffset`
+  (`includes/class-wormiss-rest-client.php`, `includes/class-wormiss-events.php`).
+- Useful `EventData` fields: `EventId`, `EventCode`, `Name`, `Description`, `StartDateTime`,
+  `EndDateTime`, `Status`, `Location`, `VirtualMeetingUrl`, `Category`, `RegistrationEndDate`,
+  `Capacity`, `TemplateState` and `PublishingInformation`. wormiss drops templates, unpublished
+  or expired events and events whose status is not active (`A`), and links to
+  `/iCore/Events/Event_display.aspx?EventKey={EventId}`.
+- An iMIS source for upcoming CPD would be a second `local_cpdlog\local\upcoming\source` class.
+  The membership bridge's event-to-course mapping (`MOODLE_PRODUCTS`, `{EventCode}/REG`) is marked
+  replaceable because of a planned program rework, so do not depend on it.
+
+**CPD categories in iMIS.**
+- Per-event CPD hours are in the `EventCPD` panel ("CPD Hours"), keyed `EventKey|Ordinal`, with
+  decimal `EducationPoints`, `ReviewingPerformancePoints` and `MeasuringOutcomesPoints`
+  (`includes/class-wormiss-event-cpd.php`). These match the logbook's EA, RP and MO categories.
+- wormiss shows New Zealand names beside the Australian ones: Medical Education, Reviewing
+  Practices and Patient Outcomes.
+- Each row also has `ProgramLevelRequirements`: addressing health inequities, culturally safe
+  practice, maintaining and developing ethical practice, and maintaining and developing
+  professionalism (or none). The logbook does not record these yet.
+- Neither project holds hour targets; they remain an SCCA question.
+
+**Where member CPD lives in iMIS (to confirm).**
+- A business object named `CPDLogbook` exists: wormiss checks it through
+  `/api/metadata/CPDLogbook`, but its fields are unknown. It is the likely target for phase 6
+  and source for phase 7. Reading that metadata, and one member's rows, on sccadev is the first
+  step for both phases.
+- The alternative is iMIS `Activity` rows. wormiss writes CPD points to `UNITS` and `UF_4` with
+  the credit type in `CATEGORY`. The membership bridge found iMIS rejects a partial Activity body
+  with HTTP 500 and accepts only the full record, every column typed (`build_note_body()`), and
+  that the Activity columns for credit type, value and dates were never seen over REST.
+- iMIS currently derives course credit (CEU) from the product, and about six months of
+  vendor-written course completion activity (`MOODLE` and `MOODLENOTE` rows) already exists. A CPD
+  push must not count those hours twice, and a phase 7 import must not duplicate completions the
+  logbook already releases (decision 21).
+
+**Building blocks to reuse.**
+- REST client: `POST {base}/token` (password grant) cached until 60 seconds before expiry, one
+  retry after a 401, paging, IQAs through `GET /api/iqa?QueryName=…&Parameter=…` with positional
+  prompts (IQAs need "Available via REST API"), and short error reasons from the reply. The base
+  URL is the site root without `/api`.
+- An audit log of every call with credentials redacted, covered by the privacy provider.
+- Member IDs: iMIS `PartyId` = `ID`; at SCCA SAML fills the Moodle ID number with it, read with
+  an exactly-one-match rule, and a digits-only check keeps accounts such as `admin` out.
+- Safety: every write off and in dry run by default; an empty or failed read never drives
+  deletions; per-member locks; retries through adhoc tasks; a read-only connection test script.
+
+**Cautions for sccadev.**
+- sccadev was cloned from production and its integrations still point at the production ATS host.
+  Check RiSE process automation before any test write.
+- Use a dedicated API account with only the RemoteService role; each API user is a paid licence.
+- Adding a Yes/No property to a panel that already has rows makes per-row reads and writes of
+  those rows fail with HTTP 500.
+- Dates are sent as local time with no timezone.
+
 ## Licensing note
 
 The plugin is Mode B: GPLv3 or later, copyright 2026 Vernon Spain. It was first written with
@@ -232,7 +297,7 @@ standard, including the boilerplate sniff, with no `.phpcs.xml` overrides.
 | 7. iMIS pull | Read-only import and conflict detection | |
 | 8. Calendar and events | Period dates in the calendar, reminders (decision 19); upcoming CPD (decision 23) | Done |
 | Image blog | Copy CPD awarded by `local_imageblog` into the logbook | Done |
-| Moodle App | Logbook in the app: view offline, log and submit entries (decision 22) | In progress |
+| Moodle App | Logbook in the app: view offline, log and submit entries (decision 22) | Done |
 | External and course CPD | External activities (decision 20); CPD from course completions (decision 21) | Done |
 
 ## Still open
@@ -240,4 +305,7 @@ standard, including the boilerplate sniff, with no `.phpcs.xml` overrides.
 - Hour targets and category names SCCA actually uses (needed for seed data).
 - Retention position on approved entries under the APPs (delete or anonymise).
 - Whether existing CPD history in iMIS must be visible on day one (would bring phase 7 forward).
-- Whether an iMIS event feed exists or an IQA must be built.
+- The fields of the iMIS `CPDLogbook` business object, and whether phase 6 writes there or to
+  `Activity` rows (see the iMIS research above).
+- Whether New Zealand members should see the New Zealand category names, and whether the
+  logbook should record iMIS program level requirements.
