@@ -140,13 +140,14 @@ final class mobile_test extends \advanced_testcase
      * and none when upcoming CPD is switched off.
      */
     public function test_logbook_upcoming(): void {
+        // Only staff may add course events and change the locked CPD fields.
+        $this->setAdminUser();
         $this->getDataGenerator()->create_event([
             'name' => 'Webinar <b>x</b>',
             'timestart' => time() + DAYSECS,
             'eventtype' => 'course',
             'courseid' => $this->course->id,
         ]);
-        $this->setAdminUser();
         update_course((object) ['id' => $this->course->id, 'customfield_cpdlog_hours' => 2]);
         $this->setUser($this->member);
 
@@ -154,7 +155,8 @@ final class mobile_test extends \advanced_testcase
         $data = self::otherdata($result);
         $this->assertSame('mine', $data['upcomingfilter']);
         $this->assertSame(60, $data['upcomingdays']);
-        $this->assertSame(['Webinar x'], array_column($data['upcoming']['mine'], 'title'));
+        // The course itself starts today, so its start is listed too.
+        $this->assertSame(['Dermoscopy basics', 'Webinar x'], array_column($data['upcoming']['mine'], 'title'));
         $this->assertSame([], $data['upcoming']['available']);
         $this->assertStringContainsString('ion-segment', $result['templates'][0]['html']);
         $this->assertStringNotContainsString('Webinar', $result['templates'][0]['html']);

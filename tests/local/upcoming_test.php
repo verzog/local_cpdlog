@@ -181,12 +181,12 @@ final class upcoming_test extends \advanced_testcase
         set_config('upcominglimit', 2, 'local_cpdlog');
         $this->assertSame(['Session 1', 'Session 2'], self::titles(upcoming::get_lists($userid, $this->now))['mine']);
 
-        // The cached list is for one window, so a new window loads afresh.
-        set_config('upcomingdays', 5, 'local_cpdlog');
+        // The cached list is for one window, so a new window loads afresh. Four days run to 05/03 00:00.
+        set_config('upcomingdays', 4, 'local_cpdlog');
         set_config('upcominglimit', 50, 'local_cpdlog');
         $lists = self::titles(upcoming::get_lists($userid, $this->now));
         $this->assertSame(['Session 1', 'Session 2', 'Session 3'], $lists['mine']);
-        $this->assertSame(['Open course'], $lists['available']);
+        $this->assertSame([], $lists['available']);
 
         set_config('upcomingdays', 0, 'local_cpdlog');
         $this->assertSame(upcoming::DEFAULT_DAYS, upcoming::get_days());

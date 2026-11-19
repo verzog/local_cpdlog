@@ -123,7 +123,8 @@ class upcoming
                 'iscourse' => $item->type === 'course',
                 'title' => $item->title,
                 'coursename' => $item->coursename,
-                'date' => userdate($item->timestart, $format),
+                // Days and hours keep their leading zeros: DD/MM/YYYY, as elsewhere in the logbook.
+                'date' => userdate($item->timestart, $format, 99, false, false),
                 'hours' => $item->hours,
                 'category' => $item->category,
                 'url' => $item->url,

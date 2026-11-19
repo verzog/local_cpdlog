@@ -101,7 +101,7 @@ class moodle_source implements source
         $bycategory = [];
         foreach ($courses as $course) {
             $context = \context_course::instance($course->id);
-            $course->name = format_string($course->fullname, true, ['context' => $context, 'escape' => false]);
+            $course->name = self::plain($course->fullname, $context);
             $course->cpd = self::course_cpd((int) $course->id);
             $bycategory[$course->category][] = (int) $course->id;
             if ($course->startdate >= $from && $course->startdate < $to) {
@@ -122,11 +122,11 @@ class moodle_source implements source
             if ($event->eventtype === 'course') {
                 $course = $courses[$event->courseid];
                 $context = \context_course::instance($course->id);
-                $title = format_string($event->name, true, ['context' => $context, 'escape' => false]);
+                $title = self::plain($event->name, $context);
                 $items[] = self::item('event', $title, $course, (int) $event->timestart, false, [(int) $course->id]);
             } else {
                 $context = \context_coursecat::instance($event->categoryid);
-                $title = format_string($event->name, true, ['context' => $context, 'escape' => false]);
+                $title = self::plain($event->name, $context);
                 $item = self::item('event', $title, null, (int) $event->timestart, false, $bycategory[$event->categoryid]);
                 $item->url = (new \moodle_url('/calendar/view.php', [
                     'view' => 'day',
@@ -168,10 +168,22 @@ class moodle_source implements source
             'timestart' => $timestart,
             'allday' => $allday,
             'hours' => $cpd ? format_float($cpd->hours, 2) : '',
-            'category' => $cpd ? format_string($cpd->category->get('name'), true, ['escape' => false]) : '',
+            'category' => $cpd ? self::plain($cpd->category->get('name'), \context_system::instance()) : '',
             'url' => $course ? (new \moodle_url('/course/view.php', ['id' => $course->id]))->out(false) : '',
             'courseids' => $courseids,
         ];
+    }
+
+    /**
+     * Formats a name as plain text, with filters applied, for a template to escape.
+     *
+     * @param string $text The name as stored.
+     * @param \context $context Its context.
+     * @return string
+     */
+    protected static function plain(string $text, \context $context): string {
+        $text = format_string($text, true, ['context' => $context, 'escape' => false]);
+        return html_entity_decode($text, ENT_QUOTES | ENT_HTML5, 'UTF-8');
     }
 
     /**
