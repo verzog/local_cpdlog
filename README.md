@@ -540,9 +540,10 @@ php admin/cli/scheduled_task.php --execute='\local_cpdlog\task\import_nightly'
 - [ ] Audit the same member again: everything is _Already imported_.
 - [ ] Change one of their rows' hours in iMIS and audit again: it shows _Changed_, and the logbook
       entry is not changed.
-- [ ] Log an entry in Moodle that matches one of their iMIS rows (same day, category and hours) and
-      audit again: it is listed on _Import conflicts_. Try _Skip_ on one and _Import anyway_ on
-      another.
+- [ ] Add two new rows for the member in CPDLogbook, and log a matching entry in Moodle for each
+      (same day, category and hours). Use new rows: rows already imported are listed as _Already
+      imported_ and never checked for conflicts. Audit again: both are listed on _Import
+      conflicts_. Try _Skip_ on one and _Import anyway_ on the other.
 - [ ] Only then audit everyone, and review the counts and a sample of each tab before importing.
 - [ ] To use the nightly import, tick _Nightly import from iMIS_ with _Dry run_ still ticked. Check
       the next morning's audit on the import page, then untick _Dry run_ once it looks right.
