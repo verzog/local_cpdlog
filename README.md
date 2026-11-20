@@ -25,6 +25,7 @@ agreed design decisions and the build plan.
 - [CPD from the image blog](#cpd-from-the-image-blog)
 - [Importing CPD history](#importing-cpd-history)
 - [Sending CPD to iMIS](#sending-cpd-to-imis)
+- [Testing against iMIS on sccadev](#testing-against-imis-on-sccadev)
 - [Privacy and data deletion](#privacy-and-data-deletion)
 - [Development and testing](#development-and-testing)
 - [License](#license)
@@ -471,6 +472,116 @@ Rows Moodle wrote are never imported back: the import skips rows whose key match
 created, or whose origin column (_Origin column_ in the import settings, such as
 `OriginatingReferenceType`) holds the push's origin type. Deleting a member's CPD data in Moodle
 does not delete their rows in iMIS.
+
+## Testing against iMIS on sccadev
+
+Work through this on sccadev before switching anything that talks to iMIS on in production. Do the
+parts in this order: each one builds confidence for the next, and only the last one writes to
+iMIS. Tick each item as you go, and note anything unexpected (the reason on _Send CPD to iMIS_, a
+dry-run body, a screenshot) before moving on.
+
+Background tasks can be run straight away instead of waiting for cron, from the Moodle directory:
+
+```
+php admin/cli/adhoc_task.php --execute
+php admin/cli/scheduled_task.php --execute='\local_cpdlog\task\refresh_imis_events'
+php admin/cli/scheduled_task.php --execute='\local_cpdlog\task\import_nightly'
+```
+
+### 1. Before you start
+
+- [ ] The Moodle site is upgraded to this version and cron runs (or tasks are run by hand, as above).
+- [ ] The iMIS connection points at **sccadev, not production**: _Settings > iMIS connection_, or
+      the Membership Bridge's REST base URL when the bridge is installed (the logbook uses it then).
+- [ ] sccadev was cloned from production and its integrations still point at the production ATS
+      host. In iMIS, check _RiSE > Process automation_ for anything that runs when a CPDLogbook row
+      or an activity is added, and switch it off or confirm it is harmless.
+- [ ] The service account is a dedicated iMIS user with the RemoteService role: read access to
+      events, EventCPD and the IQAs used, and write access to CPDLogbook (needed for part 4 only).
+- [ ] Two or three throwaway test members exist in both systems. Each Moodle account's ID number
+      (or the Membership Bridge's member ID field) holds the member's iMIS ID.
+- [ ] Everything starts off: _Send approved CPD to iMIS_ unticked with _Dry run_ ticked, _Nightly
+      import from iMIS_ unticked, and _Upcoming CPD from_ set to Moodle.
+
+### 2. Upcoming CPD from iMIS (reads only)
+
+- [ ] Set _Upcoming CPD from_ to "Moodle and iMIS", then run the task _Read upcoming CPD events
+      from iMIS_. It reports how many events it read; an error here means the connection or account
+      is wrong.
+- [ ] The count matches the active, published events with CPD hours in the next year in iMIS.
+- [ ] Register a test member for an event in iMIS. On their logbook, the event shows under
+      _Mine_, other events under _Available_, with the hours and categories from the event's _CPD
+      Hours_ panel, and the link opens the event's iMIS page.
+- [ ] Cancel that registration in iMIS, then wait 15 minutes (or purge caches). The event moves to
+      _Available_. **If it stays under _Mine_, cancelled registrations still come back from iMIS:
+      report it before going further.**
+- [ ] Repeat with a waitlist-only registration. It should not count as _Mine_ either.
+- [ ] Untick _Only iMIS events with CPD hours_ and check events without hours appear too; tick it
+      again if they should not.
+
+### 3. Importing CPD history (reads only)
+
+- [ ] Build the history IQA in iMIS from CPDLogbook, with _Available via REST API_ ticked and an
+      optional first prompt for the member ID. Suggested columns: `ID`, a key made of
+      `ID + '|' + Ordinal` named `Key`, `ActivityDate`, `CourseTitle`, `EducationHours`,
+      `ReviewingPerformanceHours`, `MeasuringOutcomesHours` and `OriginatingReferenceType`. Use
+      CPDLogbook's own `ReviewingPerformanceHours`, not the event's `ReviewingPerformancePoints`
+      that the member logbook IQA shows as RP(new).
+- [ ] In _Import settings_, enter the IQA's path, then press _Show source fields_ on _Import CPD
+      history_ and check the columns are listed.
+- [ ] Fill in the mapping: member ID `ID`, key `Key`, date `ActivityDate`, title `CourseTitle`, hours
+      `EA=EducationHours`, `RP=ReviewingPerformanceHours`, `MO=MeasuringOutcomesHours`, origin column
+      `OriginatingReferenceType`, and match members by iMIS ID.
+- [ ] Audit **one test member** (enter their iMIS ID). The _New_ count matches their CPDLogbook rows
+      with hours, and any _Unmatched_ rows have a reason that makes sense (no reporting period
+      covering the date, for example).
+- [ ] Press _Import_, run the background tasks, and check the member's logbook: the entries show
+      _From iMIS_, cannot be edited, and count towards their targets.
+- [ ] Audit the same member again: everything is _Already imported_.
+- [ ] Change one of their rows' hours in iMIS and audit again: it shows _Changed_, and the logbook
+      entry is not changed.
+- [ ] Log an entry in Moodle that matches one of their iMIS rows (same day, category and hours) and
+      audit again: it is listed on _Import conflicts_. Try _Skip_ on one and _Import anyway_ on
+      another.
+- [ ] Only then audit everyone, and review the counts and a sample of each tab before importing.
+- [ ] To use the nightly import, tick _Nightly import from iMIS_ with _Dry run_ still ticked. Check
+      the next morning's audit on the import page, then untick _Dry run_ once it looks right.
+
+### 4. Sending CPD to iMIS (writes)
+
+- [ ] In _Push settings_, check the defaults match CPDLogbook: `ID`, `ActivityDate`, `CourseTitle`,
+      the three hours fields, `OriginatingReferenceType` = `MOODLE`, `OriginatingReferenceValue`, and
+      `SCCAActivity=1`.
+- [ ] Tick _Send approved CPD to iMIS_, leaving _Dry run_ ticked.
+- [ ] As a test member, log an entry; approve it as an approver; run the background tasks.
+- [ ] On _Send CPD to iMIS_, the _Dry run_ tab lists it. Open its body and check the member's iMIS
+      ID, the date, the title, the hours in the right category's field (0 in the others), the origin
+      `MOODLE`, the reference `cpdlog:` and the entry's id, and `SCCAActivity`.
+- [ ] Untick _Dry run_, press _Send again_ and run the background tasks. The entry moves to _Sent_
+      with its iMIS row key (`ID|Ordinal`).
+- [ ] In iMIS, the row is on the member's CPD logbook with the right date, title and hours, and
+      shows in the member logbook IQA.
+- [ ] Reverse the entry in Moodle and run the tasks. In iMIS the row's hours are now 0 and its title
+      starts "Reversed:". The row is still there.
+- [ ] Release a course completion (a course with _CPD hours_ set) for a test member and check it is
+      sent too. Then check the member's CPD totals in iMIS: if iMIS already counts that course
+      through the Membership Bridge's completion record, the hours are counted twice, so agree with
+      SCCA whether released completions should be sent.
+- [ ] Approve an entry for a test member without an iMIS ID: it shows under _Not sent_ with the
+      reason.
+- [ ] Put a wrong field name in _Hours fields_, approve another entry and run the tasks: it shows
+      under _Failed_ with iMIS's reason. Put the right name back and press _Send again_.
+- [ ] Audit the test member's history again (part 3): the rows Moodle wrote are _Already imported_,
+      with the reason "Written to iMIS by Moodle", and are not imported back.
+
+### 5. Afterwards
+
+- [ ] Remove the test rows from CPDLogbook in iMIS by hand. Deleting the test members' CPD data in
+      Moodle does not touch iMIS.
+- [ ] Note the results, and anything still to settle with SCCA.
+- [ ] In production, switch on in the same order: upcoming CPD from iMIS, then the import (audit
+      first, nightly in dry run), then sending (dry run first). Point the iMIS connection at
+      production only when you get there.
 
 ## Privacy and data deletion
 
