@@ -70,8 +70,11 @@ class entry extends \core\persistent
     /** @var string Copied from the image blog (local_imageblog), which owns it; read-only here. */
     const SOURCE_IMAGEBLOG = 'imageblog';
 
+    /** @var string Imported from a CSV file of CPD history from another system; read-only here. */
+    const SOURCE_IMPORT = 'import';
+
     /** @var string[] Every source. */
-    const SOURCES = [self::SOURCE_MOODLE, self::SOURCE_IMIS, self::SOURCE_IMAGEBLOG];
+    const SOURCES = [self::SOURCE_MOODLE, self::SOURCE_IMIS, self::SOURCE_IMAGEBLOG, self::SOURCE_IMPORT];
 
     /** @var int The course choice in the entry form for an activity outside Moodle. */
     const EXTERNAL_COURSE = -1;

@@ -204,5 +204,57 @@
         <INDEX NAME="courseid-status" UNIQUE="false" FIELDS="courseid, status"/>
       </INDEXES>
     </TABLE>
+    <TABLE NAME="local_cpdlog_import_run" COMMENT="Audits of CPD history from another system (iMIS or a CSV file), run by staff or the nightly task.">
+      <FIELDS>
+        <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="true"/>
+        <FIELD NAME="source" TYPE="char" LENGTH="20" NOTNULL="true" SEQUENCE="false" COMMENT="imis or csv."/>
+        <FIELD NAME="memberid" TYPE="char" LENGTH="100" NOTNULL="false" SEQUENCE="false" COMMENT="The one member audited, by their ID in the source; null for everyone."/>
+        <FIELD NAME="status" TYPE="char" LENGTH="20" NOTNULL="true" DEFAULT="audited" SEQUENCE="false" COMMENT="audited, queued, imported or failed."/>
+        <FIELD NAME="counts" TYPE="text" NOTNULL="false" SEQUENCE="false" COMMENT="JSON: rows by outcome."/>
+        <FIELD NAME="requestedby" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false" COMMENT="The staff member who ran it; 0 for the nightly task or once their own data is deleted."/>
+        <FIELD NAME="importedby" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false" COMMENT="The staff member who imported it; 0 for none, the nightly task, or once their own data is deleted."/>
+        <FIELD NAME="timecreated" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+        <FIELD NAME="timemodified" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+      </FIELDS>
+      <KEYS>
+        <KEY NAME="primary" TYPE="primary" FIELDS="id"/>
+      </KEYS>
+      <INDEXES>
+        <INDEX NAME="source-timecreated" UNIQUE="false" FIELDS="source, timecreated"/>
+      </INDEXES>
+    </TABLE>
+    <TABLE NAME="local_cpdlog_import_row" COMMENT="One audited CPD record from the source, with its outcome and what it would become in the logbook.">
+      <FIELDS>
+        <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="true"/>
+        <FIELD NAME="runid" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false"/>
+        <FIELD NAME="rowkey" TYPE="char" LENGTH="255" NOTNULL="true" SEQUENCE="false" COMMENT="The source row's key and the category: becomes the entry's externalref."/>
+        <FIELD NAME="memberid" TYPE="char" LENGTH="100" NOTNULL="false" SEQUENCE="false" COMMENT="The member's ID in the source."/>
+        <FIELD NAME="userid" TYPE="int" LENGTH="10" NOTNULL="false" SEQUENCE="false" COMMENT="The matching Moodle user; null if none."/>
+        <FIELD NAME="categoryid" TYPE="int" LENGTH="10" NOTNULL="false" SEQUENCE="false"/>
+        <FIELD NAME="periodid" TYPE="int" LENGTH="10" NOTNULL="false" SEQUENCE="false"/>
+        <FIELD NAME="activitydate" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+        <FIELD NAME="hours" TYPE="number" LENGTH="6" NOTNULL="true" DEFAULT="0" SEQUENCE="false" DECIMALS="2"/>
+        <FIELD NAME="title" TYPE="char" LENGTH="255" NOTNULL="false" SEQUENCE="false"/>
+        <FIELD NAME="provider" TYPE="char" LENGTH="255" NOTNULL="false" SEQUENCE="false"/>
+        <FIELD NAME="description" TYPE="text" NOTNULL="false" SEQUENCE="false"/>
+        <FIELD NAME="outcome" TYPE="char" LENGTH="20" NOTNULL="true" SEQUENCE="false" COMMENT="new, existing, changed, conflict, unmatched or skipped."/>
+        <FIELD NAME="reason" TYPE="char" LENGTH="50" NOTNULL="false" SEQUENCE="false" COMMENT="Why a row is unmatched or changed."/>
+        <FIELD NAME="matchentryid" TYPE="int" LENGTH="10" NOTNULL="false" SEQUENCE="false" COMMENT="The logbook entry it matches or conflicts with."/>
+        <FIELD NAME="decision" TYPE="char" LENGTH="20" NOTNULL="false" SEQUENCE="false" COMMENT="For a conflict: import or skip."/>
+        <FIELD NAME="decidedby" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false" COMMENT="The staff member who decided; 0 for none or once their own data is deleted."/>
+        <FIELD NAME="timedecided" TYPE="int" LENGTH="10" NOTNULL="false" SEQUENCE="false"/>
+        <FIELD NAME="entryid" TYPE="int" LENGTH="10" NOTNULL="false" SEQUENCE="false" COMMENT="The entry it was imported as."/>
+        <FIELD NAME="timecreated" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+      </FIELDS>
+      <KEYS>
+        <KEY NAME="primary" TYPE="primary" FIELDS="id"/>
+        <KEY NAME="runid" TYPE="foreign" FIELDS="runid" REFTABLE="local_cpdlog_import_run" REFFIELDS="id"/>
+      </KEYS>
+      <INDEXES>
+        <INDEX NAME="runid-outcome" UNIQUE="false" FIELDS="runid, outcome"/>
+        <INDEX NAME="userid" UNIQUE="false" FIELDS="userid"/>
+        <INDEX NAME="rowkey" UNIQUE="false" FIELDS="rowkey"/>
+      </INDEXES>
+    </TABLE>
   </TABLES>
 </XMLDB>

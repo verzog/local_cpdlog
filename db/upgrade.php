@@ -175,5 +175,16 @@ function xmldb_local_cpdlog_upgrade($oldversion) {
         upgrade_plugin_savepoint(true, 2026101200, 'local', 'cpdlog');
     }
 
+    if ($oldversion < 2026112000) {
+        // Audits and imports of CPD history from another system (decision 25).
+        $dbman = $DB->get_manager();
+        foreach (['local_cpdlog_import_run', 'local_cpdlog_import_row'] as $table) {
+            if (!$dbman->table_exists($table)) {
+                $dbman->install_one_table_from_xmldb_file(__DIR__ . '/install.xml', $table);
+            }
+        }
+        upgrade_plugin_savepoint(true, 2026112000, 'local', 'cpdlog');
+    }
+
     return true;
 }

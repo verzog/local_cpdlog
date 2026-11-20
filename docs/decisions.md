@@ -199,6 +199,28 @@ scoping", 24/09/2026). Where this file and the scoping document differ, this fil
       Membership Bridge's `get_imis_id()`, else their ID number. The client is read-only: token from
       `POST /token`, one renewal after a 401, paging, short timeouts, and errors reported without
       request details. The privacy provider declares the iMIS ID sent to iMIS.
+25. **Importing CPD history (phase 7)** (agreed 20/11/2026). Read-only: nothing is written to the
+    source.
+    - **Sources** sit behind `local_cpdlog\local\import\source`: an iMIS IQA (`imis_iqa_source`,
+      over the REST connection of decision 24, with an optional member ID as its first prompt) and a
+      CSV upload (`csv_source`), so another system can be added later. All sources share one
+      mapping in the settings (`mapping`): member ID, a permanent key, the date, hours per logbook
+      category (`EA=EducationPoints` lines), and optional title, provider and description. A field
+      list helper shows the IQA's or file's columns and an iMIS business object's fields from
+      `/api/metadata/{object}`; the `CPDLogbook` fields are still to confirm on sccadev.
+    - **Audits** (`auditor`) are run by staff (everyone or one member) or nightly. Each category's
+      hours on a record is one candidate, recorded in `local_cpdlog_import_row` with everything the
+      import needs: new, existing, changed (listed, never applied), conflict (same member, day,
+      category and hours as a non-rejected, non-reversed entry), skipped, or unmatched with a reason.
+      Members are matched by the iMIS ID, ID number, username or email, to exactly one active user.
+    - **Imports** (`importer`) create approved entries with source `imis` (iMIS) or `import` (CSV)
+      and `externalref` = key/category, so the unique index stops a record coming in twice. Closed
+      periods are allowed; a record outside every period is unmatched. Staff import a run's new rows
+      (queued as an adhoc task) and decide conflicts on a staff list (import anyway, or skip, which
+      later audits remember). The deletion tool's guard applies: nothing dated before a member's
+      deletion, or while one is queued, is imported.
+    - **Nightly** task off by default and in dry run by default. Audits are kept 90 days; decided
+      rows are kept. The privacy provider and deletion tool cover both new tables.
 
 ## Schema notes
 
@@ -312,7 +334,7 @@ standard, including the boilerplate sniff, with no `.phpcs.xml` overrides.
 | 4. Reporting | Member progress page; Report Builder source for staff | Done |
 | 5. Privacy and hardening | Full privacy provider, PHPUnit and Behat coverage; staff deletion tool | Done |
 | 6. iMIS push | On hold until the iMIS write path is proven in sccadev | |
-| 7. iMIS pull | Read-only import and conflict detection | |
+| 7. iMIS pull | Read-only audit and import of CPD history, conflict list (decision 25); iMIS mapping to confirm on sccadev | Done |
 | 8. Calendar and events | Period dates in the calendar, reminders (decision 19); upcoming CPD (decision 23) | Done |
 | Image blog | Copy CPD awarded by `local_imageblog` into the logbook | Done |
 | Moodle App | Logbook in the app: view offline, log and submit entries (decision 22) | Done |

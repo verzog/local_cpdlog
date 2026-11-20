@@ -157,6 +157,64 @@ class local_cpdlog_generator extends component_generator_base
     }
 
     /**
+     * Records an audited CPD history row, in the latest audit (one is created if there is none).
+     *
+     * @param array $record user (username, or none for an unmatched member), key, day (DD/MM/YYYY),
+     *                      category (short name, default EA), hours (default 1), title, outcome
+     *                      (default new) and reason.
+     * @return int The row id.
+     */
+    public function create_import_row(array $record): int {
+        global $DB;
+        $auditor = \local_cpdlog\local\import\auditor::class;
+        $runid = (int) $DB->get_field_sql('SELECT MAX(id) FROM {' . $auditor::RUN_TABLE . '}');
+        if (!$runid) {
+            $runid = $DB->insert_record($auditor::RUN_TABLE, (object) [
+                'source' => 'csv',
+                'status' => 'audited',
+                'requestedby' => get_admin()->id,
+                'importedby' => 0,
+                'timecreated' => time(),
+                'timemodified' => time(),
+            ]);
+        }
+        $userid = empty($record['user']) ? null : $DB->get_field('user', 'id', ['username' => $record['user']], MUST_EXIST);
+        $day = self::parse_day($record['day']);
+        $period = \local_cpdlog\local\entry_manager::find_period($day);
+        $category = category::get_record(['shortname' => $record['category'] ?? 'EA'], MUST_EXIST);
+        $outcome = $record['outcome'] ?? 'new';
+        $match = null;
+        if ($outcome === 'conflict' && $userid) {
+            $match = $DB->get_field_select('local_cpdlog_entry', 'MIN(id)', 'userid = :userid AND activitydate = :day', [
+                'userid' => $userid,
+                'day' => $day,
+            ]) ?: null;
+        }
+        $id = $DB->insert_record($auditor::ROW_TABLE, (object) [
+            'runid' => $runid,
+            'rowkey' => $record['key'] . '/' . $category->get('shortname'),
+            'memberid' => $record['memberid'] ?? ($userid ? $DB->get_field('user', 'idnumber', ['id' => $userid]) : '9999'),
+            'userid' => $userid,
+            'categoryid' => $category->get('id'),
+            'periodid' => $period ? $period->get('id') : null,
+            'activitydate' => $day,
+            'hours' => $record['hours'] ?? 1,
+            'title' => $record['title'] ?? null,
+            'outcome' => $outcome,
+            'reason' => $record['reason'] ?? null,
+            'matchentryid' => $match,
+            'decidedby' => 0,
+            'timecreated' => time(),
+        ]);
+        $counts = array_fill_keys($auditor::OUTCOMES, 0);
+        foreach ($DB->get_records($auditor::ROW_TABLE, ['runid' => $runid], '', 'id, outcome') as $row) {
+            $counts[$row->outcome]++;
+        }
+        $DB->set_field($auditor::RUN_TABLE, 'counts', json_encode($counts), ['id' => $runid]);
+        return $id;
+    }
+
+    /**
      * Records a CPD award in the image blog's own tables, as local_imageblog does on a revealed case.
      *
      * @param array $record user (username), case (post title, created if new), reason (participation,

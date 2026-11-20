@@ -54,6 +54,8 @@ final class provider_test extends \core_privacy\tests\provider_testcase
             'local_cpdlog_completion',
             'local_cpdlog_deletion',
             'local_cpdlog_entry',
+            'local_cpdlog_import_row',
+            'local_cpdlog_import_run',
             'local_cpdlog_period',
             'local_cpdlog_reminder',
             'local_cpdlog_target',
@@ -326,5 +328,63 @@ final class provider_test extends \core_privacy\tests\provider_testcase
 
         provider::delete_data_for_user(new approved_contextlist($member, 'local_cpdlog', [$system->id]));
         $this->assertSame(1, $DB->count_records('local_cpdlog_completion'));
+    }
+
+    /**
+     * Audited CPD history is listed, exported to the member and as actions to the staff involved,
+     * and deleted on request.
+     */
+    public function test_imports(): void {
+        global $DB;
+        $this->resetAfterTest();
+        $member = $this->getDataGenerator()->create_user();
+        $staff = $this->getDataGenerator()->create_user();
+        $runid = $DB->insert_record('local_cpdlog_import_run', (object) [
+            'source' => 'csv',
+            'status' => 'audited',
+            'requestedby' => $staff->id,
+            'importedby' => 0,
+            'timecreated' => time(),
+            'timemodified' => time(),
+        ]);
+        $DB->insert_record('local_cpdlog_import_row', (object) [
+            'runid' => $runid,
+            'rowkey' => 'K1/EA',
+            'memberid' => '1001',
+            'userid' => $member->id,
+            'activitydate' => time(),
+            'hours' => 2,
+            'title' => 'Workshop',
+            'outcome' => 'conflict',
+            'decision' => 'skip',
+            'decidedby' => $staff->id,
+            'timedecided' => time(),
+            'timecreated' => time(),
+        ]);
+        $system = \context_system::instance();
+
+        foreach ([$member, $staff] as $user) {
+            $this->assertEquals([$system->id], provider::get_contexts_for_userid($user->id)->get_contextids());
+        }
+        $userlist = new userlist($system, 'local_cpdlog');
+        provider::get_users_in_context($userlist);
+        $this->assertEqualsCanonicalizing([$member->id, $staff->id], $userlist->get_userids());
+
+        $component = get_string('pluginname', 'local_cpdlog');
+        $this->export_context_data_for_user($member->id, $system, 'local_cpdlog');
+        $data = writer::with_context($system)->get_data([$component, get_string('privacy:imports', 'local_cpdlog')]);
+        $this->assertSame('Workshop', $data->imports[0]->title);
+        $this->assertSame('1001', $data->imports[0]->memberid);
+
+        writer::reset();
+        $this->export_context_data_for_user($staff->id, $system, 'local_cpdlog');
+        $actions = writer::with_context($system)->get_data([$component, get_string('privacy:staffactions', 'local_cpdlog')]);
+        $this->assertEquals($runid, $actions->actions[0]->importrunid);
+        $this->assertObjectHasProperty('skip', $actions->actions[1]);
+        $this->assertObjectNotHasProperty('title', $actions->actions[1]);
+
+        provider::delete_data_for_user(new approved_contextlist($member, 'local_cpdlog', [$system->id]));
+        $this->assertSame(0, $DB->count_records('local_cpdlog_import_row'));
+        $this->assertSame(1, $DB->count_records('local_cpdlog_import_run'));
     }
 }
