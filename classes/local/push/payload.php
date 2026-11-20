@@ -172,10 +172,13 @@ class payload
      * @param entry $entry The entry.
      * @param string $memberid The member's iMIS ID.
      * @param string|null $imiskey The row's key when it exists already, to change it; null to create it.
+     * @param string|null $entity The business object an existing row is in (Activity for an Activity
+     *                            record); the current settings' if null.
      * @return array GenericEntityData.
      * @throws \moodle_exception If the entry's category has no hours field.
      */
-    public static function build(entry $entry, string $memberid, ?string $imiskey = null): array {
+    public static function build(entry $entry, string $memberid, ?string $imiskey = null, ?string $entity = null): array {
+        $entity = $entity ?? self::entity();
         $reversed = $entry->get('status') === entry::STATUS_REVERSED;
         $hours = $reversed ? 0.0 : (float) $entry->get('hours');
         $title = \core_text::substr(display::course($entry, false), 0, $reversed ? 245 : 255);
@@ -186,7 +189,7 @@ class payload
             ->setTimezone(\core_date::get_server_timezone_object())->format('Y-m-d\TH:i:s');
         $shortname = category::get_record(['id' => $entry->get('categoryid')])?->get('shortname');
 
-        if (self::target() === self::TARGET_ACTIVITY) {
+        if ($entity === 'Activity') {
             return self::activity_body($entry, $memberid, $hours, $title, $date, (string) $shortname, $imiskey);
         }
 
@@ -208,7 +211,7 @@ class payload
             $values[$field] = $value;
         }
         $keys = $imiskey === null ? [] : explode('|', $imiskey);
-        return self::entity_body(self::entity(), $memberid, $values, $keys);
+        return self::entity_body($entity, $memberid, $values, $keys);
     }
 
     /**

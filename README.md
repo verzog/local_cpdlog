@@ -456,8 +456,11 @@ iMIS. Entries that came from iMIS, the image blog or an import are never sent.
 
 **What happens.** Approving an entry queues it, and a background task sends it, creating its row in
 iMIS and keeping the row's key. Reversing an approved entry updates that row: its hours become 0 and
-its title starts "Reversed:". Rows in iMIS are never deleted. A failed send is retried up to five
-times, then waits for staff.
+its title starts "Reversed:", even if it is reversed while its row is still being created. Rows in
+iMIS are never deleted. An existing row is always changed where it was written, even after the
+settings change. A failed send is retried up to five times, then waits for staff. Switching sending
+off stops queued sends too; they wait to be sent again. If iMIS creates a row without saying its
+key, the entry is never sent again, so no second row is made; make later changes in iMIS by hand.
 
 **Send CPD to iMIS** (staff with `local/cpdlog:sync`) lists entries by status: failed, not sent
 (with the reason, such as no iMIS ID), dry run (with the body that would be sent), waiting and

@@ -155,6 +155,7 @@ class auditor
      * @return \stdClass[] Records for the row table.
      */
     protected function classify(\stdClass $mapped): array {
+        global $DB;
         $base = [
             'runid' => $this->run->id,
             'memberid' => \core_text::substr($mapped->memberid, 0, 100) ?: null,
@@ -189,8 +190,12 @@ class auditor
         // Records Moodle wrote to iMIS (decision 26) are never imported back.
         $pushedentry = $this->run->source === 'imis' ? pusher::find_pushed($mapped->key, $mapped->memberid) : null;
         if ($pushedentry || ($mapped->origin !== '' && $mapped->origin === payload::origin())) {
+            // Linked to the member like any other row, so privacy requests and data deletion find it.
+            $user = $pushedentry ? (object) ['id' => $DB->get_field(entry::TABLE, 'userid', ['id' => $pushedentry])]
+                : $this->find_user($mapped->memberid);
             return [(object) array_merge($base, [
                 'rowkey' => \core_text::substr($mapped->key, 0, 255),
+                'userid' => $user && $user->id ? (int) $user->id : null,
                 'outcome' => 'existing',
                 'reason' => 'pushed',
                 'matchentryid' => $pushedentry,

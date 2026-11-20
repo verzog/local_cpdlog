@@ -261,6 +261,7 @@
         <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="true"/>
         <FIELD NAME="entryid" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false"/>
         <FIELD NAME="target" TYPE="char" LENGTH="20" NOTNULL="true" SEQUENCE="false" COMMENT="object or activity: where the row was written."/>
+        <FIELD NAME="entity" TYPE="char" LENGTH="64" NOTNULL="false" SEQUENCE="false" COMMENT="The iMIS business object the row was written to, such as CPDLogbook or Activity."/>
         <FIELD NAME="imiskey" TYPE="char" LENGTH="255" NOTNULL="false" SEQUENCE="false" COMMENT="The iMIS row's key, such as ID|Ordinal; null until it is created."/>
         <FIELD NAME="status" TYPE="char" LENGTH="20" NOTNULL="true" SEQUENCE="false" COMMENT="pending, sent, dryrun, failed or skipped."/>
         <FIELD NAME="action" TYPE="char" LENGTH="20" NOTNULL="false" SEQUENCE="false" COMMENT="The last thing sent or due: create, update or reverse."/>

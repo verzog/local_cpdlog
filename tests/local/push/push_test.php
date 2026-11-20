@@ -51,7 +51,8 @@ final class push_test extends \advanced_testcase
     /** @var \stdClass An approver. */
     private \stdClass $approver;
 
-    /** @var Response[][] Replies by METHOD path prefix, each list used in turn (the last repeats). */
+    /** @var array[] Replies by METHOD path prefix (a Response, or a function run when the request
+     *              arrives that returns one), each list used in turn (the last repeats). */
     private array $replies = [];
 
     /** @var array[] Requests made: method, target and decoded body. */
@@ -87,7 +88,8 @@ final class push_test extends \advanced_testcase
             $key = $request->getMethod() . ' ' . $target;
             foreach ($this->replies as $prefix => &$list) {
                 if (str_starts_with($key, $prefix)) {
-                    return Create::promiseFor(count($list) > 1 ? array_shift($list) : $list[0]);
+                    $reply = count($list) > 1 ? array_shift($list) : $list[0];
+                    return Create::promiseFor($reply instanceof \Closure ? $reply() : $reply);
                 }
             }
             return Create::promiseFor(new Response(404));
@@ -370,7 +372,100 @@ final class push_test extends \advanced_testcase
         $rows = array_column($DB->get_records(auditor::ROW_TABLE, ['runid' => $run->id]), null, 'rowkey');
         $this->assertSame('pushed', $rows['3']->reason);
         $this->assertEquals($entry->get('id'), $rows['3']->matchentryid);
+        // Linked to the member, so privacy requests and data deletion find them.
+        $this->assertEquals($this->member->id, $rows['3']->userid);
+        $this->assertEquals($this->member->id, $rows['4']->userid);
         $this->assertSame('pushed', $rows['4']->reason);
         $this->assertSame('new', $rows['5/RP']->outcome);
+    }
+
+    /**
+     * Switching sending off stops queued and retrying sends from writing to iMIS; they wait to be
+     * sent again.
+     */
+    public function test_switched_off_after_queueing(): void {
+        set_config('pushenabled', 1, 'local_cpdlog');
+        set_config('pushdryrun', 0, 'local_cpdlog');
+        $entry = $this->entry();
+        review_manager::approve($entry, (int) $this->approver->id);
+        set_config('pushenabled', 0, 'local_cpdlog');
+        $this->assertSame(pusher::STATUS_SKIPPED, pusher::send((int) $entry->get('id')));
+        $this->assertSame(get_string('push:offnow', 'local_cpdlog'), self::state($entry)->error);
+        $this->assertSame([], $this->writes());
+    }
+
+    /**
+     * A reversal made while the row is being created still reaches iMIS: the send applies it once
+     * the row exists, and queueing a reversal does not wait for the key.
+     */
+    public function test_reversal_during_create(): void {
+        global $DB;
+        set_config('pushenabled', 1, 'local_cpdlog');
+        set_config('pushdryrun', 0, 'local_cpdlog');
+        $entry = $this->entry();
+        review_manager::approve($entry, (int) $this->approver->id);
+        $this->assertTrue(pusher::queue((int) $entry->get('id')));
+        $entryid = (int) $entry->get('id');
+        // While iMIS takes a while to answer, staff reverse the entry.
+        $this->replies['POST /api/CPDLogbook'] = [function () use ($entryid) {
+            global $DB;
+            $DB->set_field(entry::TABLE, 'status', entry::STATUS_REVERSED, ['id' => $entryid]);
+            return new Response(201, [], json_encode(['Identity' => ['IdentityElements' => ['$values' => ['1001', '8']]]]));
+        }];
+        $this->replies['PUT /api/CPDLogbook/~1001|8'] = [new Response(200, [], '')];
+        $this->assertSame(pusher::STATUS_SENT, pusher::send($entryid));
+        $writes = $this->writes();
+        $this->assertSame(['POST', 'PUT'], array_column($writes, 'method'));
+        $this->assertEquals(0, self::props($writes[1]['body'])['ReviewingPerformanceHours']);
+        $this->assertSame('reverse', self::state($entry)->action);
+
+        // Queued while the first send was waiting, a reversal is not dropped for want of a key.
+        $other = $this->entry(['day' => '11/03/2026']);
+        review_manager::approve($other, (int) $this->approver->id);
+        review_manager::reverse(new entry($other->get('id')), (int) $this->approver->id, 'Wrong');
+        $this->assertSame('reverse', self::state($other)->action);
+        $this->assertSame(pusher::STATUS_SKIPPED, pusher::send((int) $other->get('id')));
+        $this->assertSame(get_string('push:notsent', 'local_cpdlog'), self::state($other)->error);
+    }
+
+    /**
+     * A row iMIS created without saying its key is never created again by a resend.
+     */
+    public function test_no_key_is_not_created_twice(): void {
+        set_config('pushenabled', 1, 'local_cpdlog');
+        set_config('pushdryrun', 0, 'local_cpdlog');
+        $this->replies['POST /api/CPDLogbook'] = [new Response(201, [], '')];
+        $entry = $this->entry();
+        review_manager::approve($entry, (int) $this->approver->id);
+        $this->assertSame(pusher::STATUS_SENT, pusher::send((int) $entry->get('id')));
+        $this->assertNull(self::state($entry)->imiskey);
+
+        pusher::queue((int) $entry->get('id'));
+        $this->assertSame(pusher::STATUS_SKIPPED, pusher::send((int) $entry->get('id')));
+        $this->assertSame(get_string('push:nokey', 'local_cpdlog'), self::state($entry)->error);
+        $this->assertCount(1, $this->writes());
+    }
+
+    /**
+     * An existing row is changed where it was written, even after the target setting changes.
+     */
+    public function test_original_destination(): void {
+        set_config('pushenabled', 1, 'local_cpdlog');
+        set_config('pushdryrun', 0, 'local_cpdlog');
+        $this->replies['POST /api/CPDLogbook'] = [new Response(201, [], json_encode([
+            'Identity' => ['IdentityElements' => ['$values' => ['1001', '3']]],
+        ]))];
+        $this->replies['PUT /api/CPDLogbook/~1001|3'] = [new Response(200, [], '')];
+        $entry = $this->entry();
+        review_manager::approve($entry, (int) $this->approver->id);
+        pusher::send((int) $entry->get('id'));
+        $this->assertSame('CPDLogbook', self::state($entry)->entity);
+
+        set_config('pushtarget', payload::TARGET_ACTIVITY, 'local_cpdlog');
+        review_manager::reverse(new entry($entry->get('id')), (int) $this->approver->id, 'Wrong');
+        $this->assertSame(pusher::STATUS_SENT, pusher::send((int) $entry->get('id')));
+        $put = $this->writes()[1];
+        $this->assertSame('/api/CPDLogbook/~1001|3', $put['target']);
+        $this->assertSame('CPDLogbook', $put['body']['EntityTypeName']);
     }
 }

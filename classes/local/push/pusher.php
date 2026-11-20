@@ -98,16 +98,18 @@ class pusher
         }
         $state = $DB->get_record(self::TABLE, ['entryid' => $entryid]);
         $status = $entry->get('status');
-        // A reversal only matters once a row exists in iMIS.
-        if ($status !== entry::STATUS_APPROVED && !($status === entry::STATUS_REVERSED && $state && $state->imiskey)) {
+        // A reversal matters once the entry has been queued or sent: its first send may still be under
+        // way, or about to create the row. The send decides what is due when it runs.
+        if ($status !== entry::STATUS_APPROVED && !($status === entry::STATUS_REVERSED && $state)) {
             return false;
         }
         $now = time();
         $record = (object) [
             'entryid' => $entryid,
             'target' => $state->target ?? payload::target(),
+            'entity' => $state->entity ?? payload::entity(),
             'status' => self::STATUS_PENDING,
-            'action' => self::action($entry, $state ? $state->imiskey : null),
+            'action' => self::action($entry, $state ?: null),
             'error' => null,
             'attempts' => 0,
             'timemodified' => $now,
@@ -127,17 +129,22 @@ class pusher
     }
 
     /**
-     * Returns what sending the entry does: create its iMIS row, update it, or mark it reversed.
+     * Returns what sending the entry does: create its iMIS row, update it, mark it reversed, or
+     * nothing until staff reconcile a row iMIS created without saying its key.
      *
      * @param entry $entry The entry.
-     * @param string|null $imiskey Its iMIS row's key, if it has one.
-     * @return string
+     * @param \stdClass|null $state Its push state, if any.
+     * @return string create, update, reverse or reconcile.
      */
-    protected static function action(entry $entry, ?string $imiskey): string {
+    protected static function action(entry $entry, ?\stdClass $state): string {
+        $created = $state && ($state->imiskey || $state->timesent);
+        if ($state && !$state->imiskey && $state->timesent) {
+            return 'reconcile';
+        }
         if ($entry->get('status') === entry::STATUS_REVERSED) {
             return 'reverse';
         }
-        return $imiskey ? 'update' : 'create';
+        return $created ? 'update' : 'create';
     }
 
     /**
@@ -183,11 +190,16 @@ class pusher
         $connection = connection::get();
         $user = $DB->get_record('user', ['id' => $entry->get('userid')], 'id, username, idnumber, email, deleted');
         $memberid = $user && !$user->deleted ? connection::member_id($user) : '';
-        $action = self::action($entry, $state->imiskey);
+        $action = self::action($entry, $state);
 
         // Reasons not to send that a retry would not fix.
         $skip = null;
-        if (!$connection->is_configured()) {
+        if (!self::is_enabled()) {
+            // Switched off since it was queued: kept, to send again once it is back on.
+            $skip = get_string('push:offnow', 'local_cpdlog');
+        } else if ($action === 'reconcile') {
+            $skip = get_string('push:nokey', 'local_cpdlog');
+        } else if (!$connection->is_configured()) {
             $skip = get_string('imis:notconfigured', 'local_cpdlog');
         } else if ($missing = payload::get_missing()) {
             $skip = get_string('push:mappingincomplete', 'local_cpdlog', implode(', ', $missing));
@@ -202,8 +214,10 @@ class pusher
             return self::record($state, $entry, self::STATUS_SKIPPED, $action, null, $skip);
         }
 
+        // An existing row is changed where it was written, even if the settings have changed since.
+        $entity = $state->entity ?: payload::entity();
         try {
-            $body = payload::build($entry, $memberid, $action === 'create' ? null : $state->imiskey);
+            $body = payload::build($entry, $memberid, $action === 'create' ? null : $state->imiskey, $entity);
         } catch (\moodle_exception $e) {
             return self::record($state, $entry, self::STATUS_SKIPPED, $action, null, $e->getMessage());
         }
@@ -212,14 +226,28 @@ class pusher
             return self::record($state, $entry, self::STATUS_DRYRUN, $action, $json, null);
         }
 
-        $entity = payload::entity();
         try {
             $client = new client($connection);
             if ($action === 'create') {
                 $reply = $client->send('POST', '/api/' . $entity, $body);
                 $state->imiskey = payload::key_from_reply($reply) ?: null;
-                // Kept at once, so a later failure never creates the row a second time.
-                $DB->set_field(self::TABLE, 'imiskey', $state->imiskey, ['id' => $state->id]);
+                // Kept at once, with the time, so a later failure or a resend never creates the row a
+                // second time, even when iMIS did not say its key.
+                $state->timesent = time();
+                $DB->update_record(self::TABLE, (object) [
+                    'id' => $state->id,
+                    'imiskey' => $state->imiskey,
+                    'entity' => $entity,
+                    'timesent' => $state->timesent,
+                ]);
+                // A reversal made while the row was being created is applied now.
+                $entry->read();
+                if ($state->imiskey && $entry->get('status') === entry::STATUS_REVERSED) {
+                    $action = 'reverse';
+                    $body = payload::build($entry, $memberid, $state->imiskey, $entity);
+                    $json = json_encode($body, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+                    $client->send('PUT', self::row_path($entity, $state->imiskey), $body);
+                }
             } else {
                 $client->send('PUT', self::row_path($entity, (string) $state->imiskey), $body);
             }
