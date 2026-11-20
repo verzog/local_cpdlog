@@ -41,6 +41,7 @@ class mapping
         'title' => 'importmaptitle',
         'provider' => 'importmapprovider',
         'description' => 'importmapdescription',
+        'origin' => 'importmaporigin',
     ];
 
     /** @var string[] The columns that must be set. */
@@ -105,8 +106,8 @@ class mapping
      *
      * @param array $row The row, column => value.
      * @return \stdClass memberid, key, date (start of the day in the site timezone, or null if it
-     *                   cannot be read), title, provider, description and hours (by category short
-     *                   name; only positive amounts).
+     *                   cannot be read), title, provider, description, origin (the system that wrote
+     *                   the record, if mapped) and hours (by category short name; only positive amounts).
      */
     public function map(array $row): \stdClass {
         $values = [];
@@ -129,6 +130,7 @@ class mapping
             'title' => \core_text::substr($get($this->columns['title']), 0, 255),
             'provider' => \core_text::substr($get($this->columns['provider']), 0, 255),
             'description' => $get($this->columns['description']),
+            'origin' => $get($this->columns['origin']),
             'hours' => $hours,
         ];
     }

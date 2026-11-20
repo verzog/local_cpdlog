@@ -58,10 +58,21 @@ class provider implements
      * @return collection The updated collection.
      */
     public static function get_metadata(collection $collection): collection {
-        // Upcoming CPD from iMIS asks whether the member is registered for each event.
+        // Upcoming CPD from iMIS asks whether the member is registered for each event, and approved
+        // entries are sent to iMIS when the push is switched on.
         $collection->add_external_location_link('imis', [
             'imisid' => 'privacy:metadata:imis:imisid',
+            'activitydate' => 'privacy:metadata:imis:activitydate',
+            'activityname' => 'privacy:metadata:imis:activityname',
+            'hours' => 'privacy:metadata:imis:hours',
         ], 'privacy:metadata:imis');
+        $collection->add_database_table('local_cpdlog_push', [
+            'entryid' => 'privacy:metadata:local_cpdlog_push:entryid',
+            'imiskey' => 'privacy:metadata:local_cpdlog_push:imiskey',
+            'status' => 'privacy:metadata:local_cpdlog_push:status',
+            'payload' => 'privacy:metadata:local_cpdlog_push:payload',
+            'timesent' => 'privacy:metadata:local_cpdlog_push:timesent',
+        ], 'privacy:metadata:local_cpdlog_push');
         $collection->add_database_table('local_cpdlog_entry', [
             'userid' => 'privacy:metadata:local_cpdlog_entry:userid',
             'categoryid' => 'privacy:metadata:local_cpdlog_entry:categoryid',
@@ -318,6 +329,23 @@ class provider implements
         if ($completions) {
             $subcontext = [$component, get_string('privacy:completions', 'local_cpdlog')];
             $writer->export_data($subcontext, (object) ['completions' => $completions]);
+        }
+
+        // Entries sent to iMIS.
+        $pushes = [];
+        $sql = 'SELECT p.* FROM {local_cpdlog_push} p JOIN {local_cpdlog_entry} e ON e.id = p.entryid
+                 WHERE e.userid = :userid ORDER BY p.entryid';
+        foreach ($DB->get_records_sql($sql, ['userid' => $userid]) as $push) {
+            $pushes[] = (object) [
+                'entryid' => $push->entryid,
+                'imiskey' => $push->imiskey,
+                'status' => $push->status,
+                'timesent' => $push->timesent ? transform::datetime($push->timesent) : null,
+            ];
+        }
+        if ($pushes) {
+            $subcontext = [$component, get_string('privacy:pushes', 'local_cpdlog')];
+            $writer->export_data($subcontext, (object) ['pushes' => $pushes]);
         }
 
         // CPD history from another system, as audited for import.

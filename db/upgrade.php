@@ -186,5 +186,25 @@ function xmldb_local_cpdlog_upgrade($oldversion) {
         upgrade_plugin_savepoint(true, 2026112000, 'local', 'cpdlog');
     }
 
+    if ($oldversion < 2026112100) {
+        // Approved entries sent to iMIS (decision 26).
+        $dbman = $DB->get_manager();
+        if (!$dbman->table_exists('local_cpdlog_push')) {
+            $dbman->install_one_table_from_xmldb_file(__DIR__ . '/install.xml', 'local_cpdlog_push');
+        }
+        upgrade_plugin_savepoint(true, 2026112100, 'local', 'cpdlog');
+    }
+
+    if ($oldversion < 2026112101) {
+        // Each pushed row remembers the business object it was written to.
+        $dbman = $DB->get_manager();
+        $table = new xmldb_table('local_cpdlog_push');
+        $field = new xmldb_field('entity', XMLDB_TYPE_CHAR, '64', null, null, null, null, 'target');
+        if (!$dbman->field_exists($table, $field)) {
+            $dbman->add_field($table, $field);
+        }
+        upgrade_plugin_savepoint(true, 2026112101, 'local', 'cpdlog');
+    }
+
     return true;
 }

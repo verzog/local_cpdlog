@@ -57,6 +57,7 @@ final class provider_test extends \core_privacy\tests\provider_testcase
             'local_cpdlog_import_row',
             'local_cpdlog_import_run',
             'local_cpdlog_period',
+            'local_cpdlog_push',
             'local_cpdlog_reminder',
             'local_cpdlog_target',
         ], $names);

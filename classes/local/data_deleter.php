@@ -228,6 +228,12 @@ final class data_deleter
         $systemid = \context_system::instance()->id;
         $entries = 0;
         $files = 0;
+        // Rows already in iMIS stay there: iMIS keeps its own records. Only Moodle's note of them goes.
+        $DB->delete_records_select(
+            \local_cpdlog\local\push\pusher::TABLE,
+            'entryid IN (SELECT id FROM {' . entry::TABLE . '} WHERE userid = :userid)',
+            ['userid' => $userid]
+        );
         foreach ($DB->get_fieldset_select(entry::TABLE, 'id', 'userid = :userid', ['userid' => $userid]) as $entryid) {
             $areafiles = $fs->get_area_files($systemid, 'local_cpdlog', entry_manager::EVIDENCE_AREA, $entryid, 'id', false);
             $files += count($areafiles);
