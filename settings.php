@@ -210,7 +210,7 @@ if ($hassiteconfig) {
                 'email' => new lang_string('email'),
             ]
         ));
-        foreach (['member', 'key', 'date', 'title', 'provider', 'description'] as $column) {
+        foreach (['member', 'key', 'date', 'title', 'provider', 'description', 'origin'] as $column) {
             $importsettings->add(new admin_setting_configtext(
                 'local_cpdlog/importmap' . $column,
                 new lang_string('importmap' . $column, 'local_cpdlog'),
@@ -240,6 +240,84 @@ if ($hassiteconfig) {
         ));
     }
     $ADMIN->add('local_cpdlog', $importsettings);
+
+    // Sending approved CPD to iMIS (decision 26).
+    $pushsettings = new admin_settingpage('local_cpdlog_pushsettings', new lang_string('pushsettings', 'local_cpdlog'));
+    if ($ADMIN->fulltree) {
+        $payload = \local_cpdlog\local\push\payload::class;
+        $pushsettings->add(new admin_setting_heading(
+            'local_cpdlog/pushheading',
+            '',
+            new lang_string('pushsettings_desc', 'local_cpdlog')
+        ));
+        $pushsettings->add(new admin_setting_configcheckbox(
+            'local_cpdlog/pushenabled',
+            new lang_string('pushenabled', 'local_cpdlog'),
+            new lang_string('pushenabled_desc', 'local_cpdlog'),
+            0
+        ));
+        $pushsettings->add(new admin_setting_configcheckbox(
+            'local_cpdlog/pushdryrun',
+            new lang_string('pushdryrun', 'local_cpdlog'),
+            new lang_string('pushdryrun_desc', 'local_cpdlog'),
+            1
+        ));
+        $pushsettings->add(new admin_setting_configselect(
+            'local_cpdlog/pushtarget',
+            new lang_string('pushtarget', 'local_cpdlog'),
+            new lang_string('pushtarget_desc', 'local_cpdlog'),
+            $payload::TARGET_OBJECT,
+            [
+                $payload::TARGET_OBJECT => new lang_string('pushtarget:object', 'local_cpdlog'),
+                $payload::TARGET_ACTIVITY => new lang_string('pushtarget:activity', 'local_cpdlog'),
+            ]
+        ));
+        $pushsettings->add(new admin_setting_configtext(
+            'local_cpdlog/pushobject',
+            new lang_string('pushobject', 'local_cpdlog'),
+            new lang_string('pushobject_desc', 'local_cpdlog'),
+            $payload::DEFAULT_OBJECT,
+            '/^[A-Za-z][A-Za-z0-9_]{0,63}$/'
+        ));
+        foreach ($payload::DEFAULT_FIELDS as $name => $default) {
+            $pushsettings->add(new admin_setting_configtext(
+                'local_cpdlog/pushmap' . $name,
+                new lang_string('pushmap' . $name, 'local_cpdlog'),
+                new lang_string('pushmap' . $name . '_desc', 'local_cpdlog'),
+                $default,
+                PARAM_RAW_TRIMMED
+            ));
+        }
+        $pushsettings->add(new admin_setting_configtextarea(
+            'local_cpdlog/pushmaphours',
+            new lang_string('pushmaphours', 'local_cpdlog'),
+            new lang_string('pushmaphours_desc', 'local_cpdlog'),
+            $payload::DEFAULT_HOURS,
+            PARAM_RAW
+        ));
+        $pushsettings->add(new admin_setting_configtextarea(
+            'local_cpdlog/pushextra',
+            new lang_string('pushextra', 'local_cpdlog'),
+            new lang_string('pushextra_desc', 'local_cpdlog'),
+            $payload::DEFAULT_EXTRA,
+            PARAM_RAW
+        ));
+        $pushsettings->add(new admin_setting_configtext(
+            'local_cpdlog/pushorigin',
+            new lang_string('pushorigin', 'local_cpdlog'),
+            new lang_string('pushorigin_desc', 'local_cpdlog'),
+            $payload::DEFAULT_ORIGIN,
+            PARAM_ALPHANUMEXT
+        ));
+        $pushsettings->add(new admin_setting_configtext(
+            'local_cpdlog/pushactivitytype',
+            new lang_string('pushactivitytype', 'local_cpdlog'),
+            new lang_string('pushactivitytype_desc', 'local_cpdlog'),
+            $payload::DEFAULT_ACTIVITY_TYPE,
+            '/^[A-Za-z0-9_]{1,10}$/'
+        ));
+    }
+    $ADMIN->add('local_cpdlog', $pushsettings);
 }
 
 // Management pages are visible to holders of local/cpdlog:manageperiods, not only site administrators.
@@ -280,5 +358,11 @@ $ADMIN->add('local_cpdlog', new admin_externalpage(
     'local_cpdlog_import',
     new lang_string('import', 'local_cpdlog'),
     new moodle_url('/local/cpdlog/admin/import.php'),
+    'local/cpdlog:sync'
+));
+$ADMIN->add('local_cpdlog', new admin_externalpage(
+    'local_cpdlog_push',
+    new lang_string('push', 'local_cpdlog'),
+    new moodle_url('/local/cpdlog/admin/push.php'),
     'local/cpdlog:sync'
 ));

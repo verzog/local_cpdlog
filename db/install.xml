@@ -256,5 +256,29 @@
         <INDEX NAME="rowkey" UNIQUE="false" FIELDS="rowkey"/>
       </INDEXES>
     </TABLE>
+    <TABLE NAME="local_cpdlog_push" COMMENT="Approved entries sent to iMIS: the iMIS row they became, and the state of the last send.">
+      <FIELDS>
+        <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="true"/>
+        <FIELD NAME="entryid" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false"/>
+        <FIELD NAME="target" TYPE="char" LENGTH="20" NOTNULL="true" SEQUENCE="false" COMMENT="object or activity: where the row was written."/>
+        <FIELD NAME="imiskey" TYPE="char" LENGTH="255" NOTNULL="false" SEQUENCE="false" COMMENT="The iMIS row's key, such as ID|Ordinal; null until it is created."/>
+        <FIELD NAME="status" TYPE="char" LENGTH="20" NOTNULL="true" SEQUENCE="false" COMMENT="pending, sent, dryrun, failed or skipped."/>
+        <FIELD NAME="action" TYPE="char" LENGTH="20" NOTNULL="false" SEQUENCE="false" COMMENT="The last thing sent or due: create, update or reverse."/>
+        <FIELD NAME="payload" TYPE="text" NOTNULL="false" SEQUENCE="false" COMMENT="The last body sent, or that would be sent in a dry run."/>
+        <FIELD NAME="error" TYPE="char" LENGTH="255" NOTNULL="false" SEQUENCE="false" COMMENT="Why the last send failed or was skipped."/>
+        <FIELD NAME="attempts" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+        <FIELD NAME="timesent" TYPE="int" LENGTH="10" NOTNULL="false" SEQUENCE="false"/>
+        <FIELD NAME="timecreated" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+        <FIELD NAME="timemodified" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+      </FIELDS>
+      <KEYS>
+        <KEY NAME="primary" TYPE="primary" FIELDS="id"/>
+        <KEY NAME="entryid" TYPE="foreign-unique" FIELDS="entryid" REFTABLE="local_cpdlog_entry" REFFIELDS="id"/>
+      </KEYS>
+      <INDEXES>
+        <INDEX NAME="status" UNIQUE="false" FIELDS="status"/>
+        <INDEX NAME="imiskey" UNIQUE="false" FIELDS="imiskey"/>
+      </INDEXES>
+    </TABLE>
   </TABLES>
 </XMLDB>

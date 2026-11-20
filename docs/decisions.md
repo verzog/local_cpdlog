@@ -221,6 +221,25 @@ scoping", 24/09/2026). Where this file and the scoping document differ, this fil
       deletion, or while one is queued, is imported.
     - **Nightly** task off by default and in dry run by default. Audits are kept 90 days; decided
       rows are kept. The privacy provider and deletion tool cover both new tables.
+26. **Sending approved CPD to iMIS (phase 6)** (agreed 20/11/2026). Off by default, dry run on by
+    default.
+    - **What:** approved entries with source `moodle` (members' entries and released course
+      completions). Entries from iMIS, the image blog or imports are never sent.
+    - **Where:** a configurable business object (SCCA's `CPDLogbook`, whose fields came from SCCA's
+      member logbook IQA: `ID`, `Ordinal`, `ActivityDate`, `CourseTitle`, `EducationHours`,
+      `ReviewingPerformanceHours`, `MeasuringOutcomesHours`, `OriginatingReferenceType`/`Value`,
+      `SCCAActivity`), or Activity records (the full typed record, as local_membershipbridge found
+      iMIS requires). Moodle's rows carry origin type `MOODLE` and reference `cpdlog:{entry id}`, and
+      `SCCAActivity=1` so the member logbook IQA lists them.
+    - **When:** the `entry_approved` and `entry_reversed` observers queue the adhoc task
+      `push_entry` in the same transaction. A create keeps the row's key (`ID|Ordinal`, or the
+      Activity `SEQN`) at once, so a retry never creates a second row. A reversal updates the row
+      with 0 hours and a "Reversed:" title; rows are never deleted. Failures are retried up to five
+      times, then wait on the staff page, which also shows dry-run bodies and resends.
+    - **Loop guard:** the phase 7 audit marks rows Moodle wrote (by key, or by the mapped origin
+      column) as already in the logbook.
+    - `local_cpdlog_push` holds each entry's iMIS key and last send; the privacy provider declares
+      it and the data sent to iMIS. The deletion tool removes Moodle's push records but not iMIS rows.
 
 ## Schema notes
 
@@ -333,7 +352,7 @@ standard, including the boilerplate sniff, with no `.phpcs.xml` overrides.
 | 3. Approval | Staff queue, approve / reject / reverse, events, message providers | Done |
 | 4. Reporting | Member progress page; Report Builder source for staff | Done |
 | 5. Privacy and hardening | Full privacy provider, PHPUnit and Behat coverage; staff deletion tool | Done |
-| 6. iMIS push | On hold until the iMIS write path is proven in sccadev | |
+| 6. iMIS push | Send approved CPD to iMIS (decision 26); dry run to check on sccadev before switching on | Done |
 | 7. iMIS pull | Read-only audit and import of CPD history, conflict list (decision 25); iMIS mapping to confirm on sccadev | Done |
 | 8. Calendar and events | Period dates in the calendar, reminders (decision 19); upcoming CPD (decision 23) | Done |
 | Image blog | Copy CPD awarded by `local_imageblog` into the logbook | Done |

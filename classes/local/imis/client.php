@@ -28,11 +28,11 @@ use GuzzleHttp\Exception\GuzzleException;
 use GuzzleHttp\Exception\RequestException;
 
 /**
- * Reads from the iMIS REST API, following the client in local_membershipbridge and wormiss.
+ * Talks to the iMIS REST API, following the client in local_membershipbridge and wormiss.
  *
  * It signs in with the service account (POST /token, password grant), keeps the token until a
  * minute before it expires, asks for a new one once if iMIS answers 401, and reads every page of
- * a list. It never writes to iMIS.
+ * a list. Only the push to iMIS (decision 26) writes, through send().
  */
 class client
 {
@@ -71,7 +71,7 @@ class client
      * @throws \moodle_exception On any other failure.
      */
     public function get(string $path): ?\stdClass {
-        $response = $this->request($path, true);
+        $response = $this->request('GET', $path, null, true);
         if ($response === null) {
             return null;
         }
@@ -111,6 +111,27 @@ class client
     }
 
     /**
+     * Writes to iMIS: POST to create a row, PUT to change one. Used only by the push to iMIS.
+     *
+     * @param string $method POST or PUT.
+     * @param string $path Path from the site root, such as /api/CPDLogbook.
+     * @param array $body The body, sent as JSON.
+     * @return \stdClass The decoded reply; empty when iMIS sends none.
+     * @throws \moodle_exception On failure, including a 404.
+     */
+    public function send(string $method, string $path, array $body): \stdClass {
+        if (!in_array($method, ['POST', 'PUT'], true)) {
+            throw new \coding_exception('Only POST and PUT can be sent.');
+        }
+        $response = $this->request($method, $path, $body, true);
+        if ($response === null) {
+            throw new \moodle_exception('imis:failed', 'local_cpdlog', '', 404);
+        }
+        $body = json_decode((string) $response->getBody());
+        return $body instanceof \stdClass ? $body : new \stdClass();
+    }
+
+    /**
      * Returns the properties of a generic iMIS row (GenericEntityData) as name => value.
      *
      * @param \stdClass $row The row.
@@ -140,18 +161,22 @@ class client
     }
 
     /**
-     * Sends a GET request with the token, renewing it once if iMIS refuses it.
+     * Sends a request with the token, renewing it once if iMIS refuses it.
      *
+     * @param string $method GET, POST or PUT.
      * @param string $path Path from the site root.
+     * @param array|null $body A body to send as JSON, or null.
      * @param bool $retry Whether a 401 may be retried with a new token.
      * @return \Psr\Http\Message\ResponseInterface|null The response, or null for a 404.
      * @throws \moodle_exception On failure.
      */
-    protected function request(string $path, bool $retry) {
+    protected function request(string $method, string $path, ?array $body, bool $retry) {
+        $options = ['headers' => ['Authorization' => 'Bearer ' . $this->token(), 'Accept' => 'application/json']];
+        if ($body !== null) {
+            $options['json'] = $body;
+        }
         try {
-            return $this->http()->get($this->connection->baseurl . $path, $this->options([
-                'headers' => ['Authorization' => 'Bearer ' . $this->token(), 'Accept' => 'application/json'],
-            ]));
+            return $this->http()->request($method, $this->connection->baseurl . $path, $this->options($options));
         } catch (RequestException $e) {
             $status = $e->getResponse() ? $e->getResponse()->getStatusCode() : 0;
             if ($status === 404) {
@@ -159,12 +184,42 @@ class client
             }
             if ($status === 401 && $retry) {
                 $this->token = '';
-                return $this->request($path, false);
+                return $this->request($method, $path, $body, false);
+            }
+            if ($method !== 'GET') {
+                $reason = $e->getResponse() ? self::reason((string) $e->getResponse()->getBody()) : '';
+                throw new \moodle_exception('imis:writefailed', 'local_cpdlog', '', trim($status . ' ' . $reason));
             }
             throw new \moodle_exception('imis:failed', 'local_cpdlog', '', $status ?: $e->getMessage());
         } catch (GuzzleException $e) {
             throw new \moodle_exception('imis:failed', 'local_cpdlog', '', $e->getMessage());
         }
+    }
+
+    /**
+     * Returns iMIS's short explanation from an error reply: its message, or its validation errors.
+     *
+     * @param string $body The reply.
+     * @return string Plain text, at most 200 characters; '' when there is none.
+     */
+    public static function reason(string $body): string {
+        $data = json_decode($body);
+        $parts = [];
+        if ($data instanceof \stdClass) {
+            foreach (['ExceptionMessage', 'Message', 'error_description'] as $field) {
+                if (!empty($data->$field) && is_string($data->$field)) {
+                    $parts[] = $data->$field;
+                    break;
+                }
+            }
+            foreach ($data->ValidationResults->Errors->{'$values'} ?? [] as $error) {
+                if ($error instanceof \stdClass && !empty($error->Message)) {
+                    $parts[] = (string) $error->Message;
+                }
+            }
+        }
+        $text = trim(preg_replace('/\s+/', ' ', strip_tags(implode(' ', $parts))));
+        return \core_text::substr($text, 0, 200);
     }
 
     /**

@@ -186,5 +186,14 @@ function xmldb_local_cpdlog_upgrade($oldversion) {
         upgrade_plugin_savepoint(true, 2026112000, 'local', 'cpdlog');
     }
 
+    if ($oldversion < 2026112100) {
+        // Approved entries sent to iMIS (decision 26).
+        $dbman = $DB->get_manager();
+        if (!$dbman->table_exists('local_cpdlog_push')) {
+            $dbman->install_one_table_from_xmldb_file(__DIR__ . '/install.xml', 'local_cpdlog_push');
+        }
+        upgrade_plugin_savepoint(true, 2026112100, 'local', 'cpdlog');
+    }
+
     return true;
 }

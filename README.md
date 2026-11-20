@@ -24,6 +24,7 @@ agreed design decisions and the build plan.
 - [CPD from course completions](#cpd-from-course-completions)
 - [CPD from the image blog](#cpd-from-the-image-blog)
 - [Importing CPD history](#importing-cpd-history)
+- [Sending CPD to iMIS](#sending-cpd-to-imis)
 - [Privacy and data deletion](#privacy-and-data-deletion)
 - [Development and testing](#development-and-testing)
 - [License](#license)
@@ -181,7 +182,7 @@ All capabilities are granted at site (system) level.
 | `local/cpdlog:approve` | Approve, reject or reverse CPD entries | Manager |
 | `local/cpdlog:viewall` | See all members' CPD in staff reports; download evidence | Manager |
 | `local/cpdlog:manageperiods` | Manage categories, periods, targets and cohort conflicts | Manager |
-| `local/cpdlog:sync` | Audit and import CPD history from iMIS or a CSV file | Manager |
+| `local/cpdlog:sync` | Audit and import CPD history; see and resend what is sent to iMIS | Manager |
 | `local/cpdlog:deletedata` | Permanently delete a member's CPD data | Nobody |
 
 ## Using the logbook (members)
@@ -433,6 +434,40 @@ _Skip_ if it is the same one. A skipped record stays skipped in later audits. Au
 **Nightly** (_Nightly import from iMIS_, off by default). The task _Audit and import CPD history from
 iMIS_ audits every member each night. While _Dry run_ is ticked (the default) it only audits, so the
 results can be checked first; otherwise it imports the new records. Conflicts always wait for staff.
+
+## Sending CPD to iMIS
+
+Approved entries logged in Moodle, including course completions released by staff, can be sent to
+iMIS. Entries that came from iMIS, the image blog or an import are never sent.
+
+**Set up** (_Settings > Push settings_). Sending is off, and dry run is on, by default.
+
+- **Write to:** a business object holding members' CPD (SCCA's `CPDLogbook` by default) or iMIS
+  Activity records. It uses the same iMIS connection as [upcoming CPD](#upcoming-cpd); the service
+  account needs write access to the chosen object.
+- **Fields** (for a business object), defaulting to SCCA's `CPDLogbook`: member ID (`ID`), date
+  (`ActivityDate`), title (`CourseTitle`), hours per category (`EA=EducationHours`,
+  `RP=ReviewingPerformanceHours`, `MO=MeasuringOutcomesHours`), the origin type and reference
+  (`OriginatingReferenceType` = `MOODLE`, `OriginatingReferenceValue` = `cpdlog:` and the entry's id),
+  and fixed values (`SCCAActivity=1`, which SCCA's member logbook IQA needs to list the row).
+- **Activity records** get every Activity column: the activity type set here, the hours in `UNITS`
+  and `UF_4`, the category short name in `CATEGORY`, the origin type in `SOURCE_CODE` and the
+  reference in `NOTE_2`.
+
+**What happens.** Approving an entry queues it, and a background task sends it, creating its row in
+iMIS and keeping the row's key. Reversing an approved entry updates that row: its hours become 0 and
+its title starts "Reversed:". Rows in iMIS are never deleted. A failed send is retried up to five
+times, then waits for staff.
+
+**Send CPD to iMIS** (staff with `local/cpdlog:sync`) lists entries by status: failed, not sent
+(with the reason, such as no iMIS ID), dry run (with the body that would be sent), waiting and
+sent. _Send again_ sends one entry or all those shown. Check the dry-run bodies on sccadev, then
+untick _Dry run_ and send them again.
+
+Rows Moodle wrote are never imported back: the import skips rows whose key matches one Moodle
+created, or whose origin column (_Origin column_ in the import settings, such as
+`OriginatingReferenceType`) holds the push's origin type. Deleting a member's CPD data in Moodle
+does not delete their rows in iMIS.
 
 ## Privacy and data deletion
 
